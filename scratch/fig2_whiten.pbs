@@ -1,0 +1,17 @@
+#!/bin/bash
+#PBS -N fig2_whiten
+#PBS -l select=1:ncpus=4:mem=32GB:ngpus=1:gpu_type=v100
+#PBS -l walltime=06:00:00
+#PBS -A P03010039
+#PBS -q casper
+#PBS -j oe
+#PBS -o /glade/u/home/wchapman/help_aiden/error_discovery/results/fig2_whiten.pbs.log
+# Whitened Fig-2 conditioning sweep. Writes results/leadtime_main_whiten.npz and
+# fig_recovery_conditioning_main_whiten.png; prints FIG2_WHITEN_DONE on success.
+# Reads the cached attractor IC read-only.
+module load conda >/dev/null 2>&1
+conda activate /glade/work/wchapman/conda-envs/run_graphcast
+export PYTHONPATH=/glade/u/home/wchapman/help_aiden
+export JAX_ENABLE_X64=1
+cd /glade/u/home/wchapman/help_aiden
+python -u -m error_discovery.finish_fig2_whiten

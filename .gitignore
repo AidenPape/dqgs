@@ -1,0 +1,21 @@
+# Vendored upstream qgs (Climdyn/qgs v1.0.0). Kept as a sibling directory so the
+# sys.path lookups in qgs_jax/spec.py and error_discovery/models.py resolve; will be
+# replaced by a pinned `qgs==1.0.0` dependency.
+qgs/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# Generated results: figures are tracked because the manuscript needs them,
+# but the arrays and job logs they come from are not.
+error_discovery/results/*.npz
+error_discovery/results/*.log
+error_discovery/results/*jobid.txt
+scratch/*.npz
+scratch/*.log

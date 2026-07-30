@@ -1,0 +1,11 @@
+#!/bin/bash
+#PBS -l select=1:ncpus=4:mem=32GB:ngpus=1:gpu_type=v100
+#PBS -l walltime=09:00:00
+#PBS -A P03010039
+#PBS -q casper
+#PBS -j oe
+module load conda >/dev/null 2>&1
+conda activate /glade/work/wchapman/conda-envs/run_graphcast
+export PYTHONPATH=/glade/u/home/wchapman/help_aiden
+cd /glade/u/home/wchapman/help_aiden
+python -u test_ideas/spinup_marathon.py $AX $AY

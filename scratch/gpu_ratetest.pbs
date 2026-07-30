@@ -1,0 +1,28 @@
+#!/bin/bash
+#PBS -N gpurate
+#PBS -l select=1:ncpus=4:mem=32GB:ngpus=1:gpu_type=v100
+#PBS -l walltime=00:15:00
+#PBS -A P03010039
+#PBS -q casper
+#PBS -j oe
+#PBS -o /glade/u/home/wchapman/help_aiden/test_ideas/gpu_ratetest.log
+module load conda >/dev/null 2>&1
+conda activate /glade/work/wchapman/conda-envs/run_graphcast
+export PYTHONPATH=/glade/u/home/wchapman/help_aiden
+cd /glade/u/home/wchapman/help_aiden
+python -u -c "
+import time, numpy as np, jax, jax.numpy as jnp
+print('DEVICES', jax.devices(), flush=True)
+from error_discovery.models import TwinModels
+from qgs.params.params import QgParams
+from qgs_jax.spec import (DEFAULT_MAOOAM_PARAMS,DEFAULT_ATEMP_PARAMS,DEFAULT_GOTEMP_PARAMS,DEFAULT_A_INSOLATION,DEFAULT_O_INSOLATION)
+from qgs_jax import model as jm
+p=QgParams(); p.set_atmospheric_channel_fourier_modes(2,4); p.set_oceanic_basin_fourier_modes(2,4)
+p.set_params(DEFAULT_MAOOAM_PARAMS); p.atemperature_params.set_params(DEFAULT_ATEMP_PARAMS); p.gotemperature_params.set_params(DEFAULT_GOTEMP_PARAMS)
+p.atemperature_params.set_insolation(*DEFAULT_A_INSOLATION); p.gotemperature_params.set_insolation(*DEFAULT_O_INSOLATION)
+tw=TwinModels(0.1,(0.,0.,1.,0.),params=p)
+x=jnp.asarray(np.random.default_rng(1).standard_normal(tw.ndim)*0.1)
+x=jm.integrate_final(tw.T_base,x,0.1,2000000); x.block_until_ready()
+t=time.time(); x=jm.integrate_final(tw.T_base,x,0.1,20000000); x.block_until_ready(); el=time.time()-t
+r=20e6/el; print('GPU rate=%.0f steps/s; 976M(30kyr)->%.2f hr'%(r,976e6/r/3600),flush=True)
+"

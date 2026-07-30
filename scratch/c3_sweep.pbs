@@ -1,0 +1,16 @@
+#!/bin/bash
+#PBS -N c3_sweep
+#PBS -l select=1:ncpus=4:mem=32GB:ngpus=1:gpu_type=v100
+#PBS -l walltime=02:00:00
+#PBS -A P03010039
+#PBS -q casper
+#PBS -j oe
+#PBS -o /glade/u/home/wchapman/help_aiden/error_discovery/results/c3_sweep.pbs.log
+# Whitened partial-observation sweep (C3). Writes results/sparsity_sparsity.npz and the
+# two sparsity figures; prints C3_DONE on success. Reads the cached attractor IC read-only.
+module load conda >/dev/null 2>&1
+conda activate /glade/work/wchapman/conda-envs/run_graphcast
+export PYTHONPATH=/glade/u/home/wchapman/help_aiden
+export JAX_ENABLE_X64=1
+cd /glade/u/home/wchapman/help_aiden
+python -u -m error_discovery.finish_c3

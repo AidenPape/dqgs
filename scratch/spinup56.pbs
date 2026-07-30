@@ -1,0 +1,23 @@
+#!/bin/bash
+#PBS -N spinup56
+#PBS -l select=1:ncpus=4:mem=32GB:ngpus=1:gpu_type=v100
+#PBS -l walltime=12:00:00
+#PBS -A P03010039
+#PBS -q casper
+#PBS -j oe
+#PBS -o /glade/u/home/wchapman/help_aiden/test_ideas/spinup56_pbs.log
+
+# 56-dim (atm 2x4) MAOOAM Brajard 30,000-year spin-up, RESUMED from the most recent
+# checkpoint (test_ideas/spinup56_brajard_ckpt.npz). Runs on GPU (integrate_final only,
+# no linalg.solve). Checkpoints every 10M steps; walltime caps at 12 h.
+
+module load conda
+conda activate /glade/work/wchapman/conda-envs/run_graphcast
+export PYTHONPATH=/glade/u/home/wchapman/help_aiden
+cd /glade/u/home/wchapman/help_aiden
+
+echo "==== device check ===="
+python -u -c "import jax; print('JAX DEVICES:', jax.devices())"
+echo "======================"
+
+python -u test_ideas/spinup56_brajard.py
