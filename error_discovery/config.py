@@ -27,10 +27,13 @@ def days_to_steps(days):
     return int(round(days * STEPS_PER_DAY))
 
 
-# --- where results live (kept inside help_aiden for easy re-runs) ----------- #
+# --- where results live (kept beside the code for easy re-runs) ------------- #
 _HERE = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(_HERE, "results")
 IC_CACHE = os.path.join(RESULTS_DIR, "attractor_ic.npz")
+
+# Form-identifiability margin below which a driver counts as unidentifiable.
+THRESH = 0.1
 
 # Initial-condition spin-up recipe (kept fixed so the cached attractor state is
 # reproducible from scratch, independent of the noise seed).

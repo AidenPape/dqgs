@@ -13,7 +13,6 @@ Run:  pytest error_discovery/test_climatology.py -v
 """
 
 import numpy as np
-import jax.numpy as jnp
 
 from error_discovery import experiment_climatology as C
 from error_discovery.config import ExperimentConfig

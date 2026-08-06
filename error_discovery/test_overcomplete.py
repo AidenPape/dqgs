@@ -11,8 +11,6 @@ through zero it identifies (almost) all of them.
 Run:  pytest error_discovery/test_overcomplete.py -v
 """
 
-import numpy as np
-
 from error_discovery import experiment_overcomplete as O
 from error_discovery.experiment_form import twin, attractor_traj
 from error_discovery.experiment_meanstd import identifiable_count, max_mean_over_std

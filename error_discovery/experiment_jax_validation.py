@@ -30,9 +30,9 @@ sys.path.insert(0, os.path.join(_ROOT, "qgs"))
 
 from qgs_jax.spec import extract_spec          # noqa: E402
 from qgs_jax import model                      # noqa: E402
-from error_discovery.config import NDIM_PER_DAY, DT  # noqa: E402
+from error_discovery.config import NDIM_PER_DAY, DT, RESULTS_DIR  # noqa: E402
+from error_discovery.figstyle import DPI  # noqa: E402
 
-RESULTS_DIR = os.path.join(_HERE, "results")
 IDX_PSIA1 = 0          # leading atmospheric streamfunction mode psi_{a,1}
 
 
@@ -84,7 +84,7 @@ def figure(nsteps=5000):
 
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_jax_validation.png")
-    fig.savefig(out, dpi=160)
+    fig.savefig(out, dpi=DPI)
     plt.close(fig)
     print(f"max state divergence over {nsteps} steps: {state_diff.max():.2e}")
     print(f"wrote {out}")

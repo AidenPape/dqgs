@@ -14,10 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
 
 from .config import RESULTS_DIR
-
-# A faint white backing so an annotation that must sit near a curve interrupts the
-# line cleanly instead of being scrawled over it.
-_LBL_BBOX = dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1.0)
+from .figstyle import DPI, LBL_BBOX
 
 
 def _load(tag):
@@ -58,13 +55,13 @@ def fig_recovery_and_conditioning(tag="main"):
             label=fr"recovery error ($\eta={etas[ie0]:.0e}$)")
     ax.axhline(0.1, ls=":", color="grey", lw=1)
     ax.text(wd[0], 0.105, "10%", color="grey", fontsize=8, va="bottom",
-            ha="left", bbox=_LBL_BBOX)
+            ha="left", bbox=LBL_BBOX)
     ax.axvline(w_opt, ls="--", color="C2", lw=1.2)
     # label rides the top of the vline (an empty band), hanging down, masked from the curves
     trans = blended_transform_factory(ax.transData, ax.transAxes)
     ax.text(w_opt, 0.98, f"best conditioning ~{w_opt:.0f} d ", color="C2",
             fontsize=7.5, rotation=90, va="top", ha="right", transform=trans,
-            bbox=_LBL_BBOX)
+            bbox=LBL_BBOX)
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("optimisation window  [days]")
     ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
@@ -97,7 +94,7 @@ def fig_recovery_and_conditioning(tag="main"):
         axb.legend(frameon=False, fontsize=8, loc="center left")
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, f"fig_recovery_conditioning_{tag}.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 
@@ -130,7 +127,7 @@ def fig_conditioning_only(tag="main_whiten"):
     trans = blended_transform_factory(ax.transData, ax.transAxes)
     ax.text(w_opt, 0.98, f"best conditioning ~{w_opt:.0f} d ", color="C2",
             fontsize=7.5, rotation=90, va="top", ha="right", transform=trans,
-            bbox=_LBL_BBOX)
+            bbox=LBL_BBOX)
     ax2.set_yscale("log")
     ax2.set_ylabel(r"cond$(J)=\sigma_{\max}/\sigma_{\min}$", color="C3")
     ax2.tick_params(axis="y", labelcolor="C3")
@@ -155,7 +152,7 @@ def fig_conditioning_only(tag="main_whiten"):
         axb.legend(frameon=False, fontsize=8, loc="center left")
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, f"fig_conditioning_only_{tag}.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 
@@ -177,7 +174,7 @@ def fig_coeff_recovery(tag="main"):
         ax.set_xlabel("optimisation window  [days]")
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, f"fig_coeff_recovery_{tag}.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 
@@ -204,7 +201,7 @@ def fig_noise(tag="main"):
     ax.legend(frameon=False, fontsize=8)
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, f"fig_noise_{tag}.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 
@@ -272,7 +269,7 @@ def fig_sparsity_noise(tag="sparsity"):
     # left edge is clear (all curves are well below 0.1 at the noiseless point); the
     # right edge is where several curves cross 0.1, so the old right-anchored label sat on them
     ax.text(xed[0], 0.105, "10% (usable)", color="grey", fontsize=8, ha="left",
-            va="bottom", bbox=_LBL_BBOX)
+            va="bottom", bbox=LBL_BBOX)
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_ylim(1.5e-3, 3.0)            # focus on the data; oracle floor is far below (annotated)
     ax.set_xlabel(r"observation noise $\eta$ (relative; leftmost = noiseless)")
@@ -282,7 +279,7 @@ def fig_sparsity_noise(tag="sparsity"):
             transform=ax.transAxes, fontsize=7.5, style="italic", color="0.4", ha="right")
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, f"fig_sparsity_noise_{tag}.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 
@@ -303,7 +300,7 @@ def fig_sparsity_window(tag="sparsity"):
     ax.legend(frameon=False, fontsize=8)
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, f"fig_sparsity_window_{tag}.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 

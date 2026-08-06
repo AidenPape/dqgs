@@ -34,6 +34,7 @@ import jax.numpy as jnp
 from .discovery import rollout
 from .experiment_form import twin, err_tendency, _fit, _resid, _margin, DT, EPS
 from .config import RESULTS_DIR
+from .figstyle import DPI
 
 
 def _attractor_ic(tw):
@@ -123,5 +124,5 @@ def figure():
     ax[1].legend(fontsize=8, frameon=False)
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_increment.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out

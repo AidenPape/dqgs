@@ -36,6 +36,7 @@ from .config import ExperimentConfig, RESULTS_DIR, steps_to_days
 from .models import TwinModels
 from .discovery import rollout, recover
 from .experiment import get_attractor_ic, build_segments
+from .figstyle import DPI
 
 
 def _quantile_stats(traj):
@@ -153,7 +154,7 @@ def figure():
     ax[1].legend(frameon=False, fontsize=7, ncol=1)
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_climatology.png")
-    fig.savefig(out, dpi=160)
+    fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
 

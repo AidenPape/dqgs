@@ -35,6 +35,7 @@ import numpy as np
 from .experiment_form import twin, attractor_traj, transient_traj, true_transient, EPS
 from .experiment_meanstd import identifiable_count, max_mean_over_std
 from .config import RESULTS_DIR
+from .figstyle import DPI
 
 
 def accessible_offattractor(tw, n_seg=8, length=600, drop=50, keep=500):
@@ -98,7 +99,7 @@ def figure():
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.26)
     out = os.path.join(RESULTS_DIR, "fig_overcomplete.png")
-    fig.savefig(out, dpi=160)
+    fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
 

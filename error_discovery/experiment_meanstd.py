@@ -48,6 +48,7 @@ import numpy as np
 
 from .experiment_form import twin, attractor_traj, transient_traj, EPS
 from .config import RESULTS_DIR
+from .figstyle import DPI
 
 
 def _EX(tw, X):
@@ -239,6 +240,6 @@ def figure():
               bbox_to_anchor=(0.5, -0.12))
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_meanstd.png")
-    fig.savefig(out, dpi=160)
+    fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out

@@ -34,11 +34,9 @@ import numpy as np
 
 from .models import TwinModels
 from .experiment_form import (attractor_traj, transient_traj, err_tendency,
-                              library, _fit, _resid, EPS)
-from .config import RESULTS_DIR
-
-# faint white backing for annotations that sit near curves (mask the line behind the text)
-_LBL_BBOX = dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1.0)
+                              _fit, _resid, EPS)
+from .config import RESULTS_DIR, THRESH
+from .figstyle import DPI, LBL_BBOX
 
 # name, g_coeffs, true library term, driver state index (None for the constant)
 DRIVERS = [
@@ -121,7 +119,6 @@ def figure(rows=None):
                      margin_att_noisy=mn, margin_off=mo)
                 for n, ra, ma, mn, mo in zip(d["names"], d["r_att"], d["margin_att"],
                                              d["margin_att_noisy"], d["margin_off"])]
-    THRESH = 0.1
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.4))
 
     # (a) on-attractor margin per driver, with the 1/r prediction overlaid
@@ -167,7 +164,7 @@ def figure(rows=None):
 
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_driver_collapse.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 
@@ -224,7 +221,6 @@ def headline_figure(save=True):
 
     d = np.load(os.path.join(RESULTS_DIR, "driver_record.npz"), allow_pickle=True)
     Ns, margin = d["Ns"], d["margin"]
-    THRESH = 0.1
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.5))
 
     # (a) margin vs record length: the opposite trends
@@ -271,7 +267,7 @@ def headline_figure(save=True):
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_driver.png")
     if save:
-        fig.savefig(out, dpi=160)
+        fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
 
@@ -294,7 +290,6 @@ def tandem_figure(n=20000, save=True):
         (r"$\psi_{a,1}$ — atmospheric circulation", (0.0, 0.0, 0.0, 1.0), "x0", 0, "C0"),
         (r"$T_{o,1}$ — ocean temperature",          (0.0, 0.0, 1.0, 0.0), "x28", 28, "C3"),
     ]
-    THRESH = 0.1
     fig, ax = plt.subplots(2, 2, figsize=(11, 6.9))
     jit = np.random.default_rng(0)
     for col, (title, gc, tname, didx, color) in enumerate(pairs):
@@ -360,7 +355,7 @@ def tandem_figure(n=20000, save=True):
     fig.tight_layout(rect=(0, 0, 1, 0.965))
     out = os.path.join(RESULTS_DIR, "fig_stiff.png")
     if save:
-        fig.savefig(out, dpi=160)
+        fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
 
@@ -495,12 +490,12 @@ def decomposition_figure(save=True):
     # empty region; anchor the note there (was at 0.62, sitting on the rising red curve)
     b.text(0.04, 0.97, "circulation pinned near $\\varepsilon$;\nocean temperature the\nleast determined "
            "(its spread\ngrows fastest with noise)",
-           transform=b.transAxes, fontsize=7.5, color="0.25", va="top", bbox=_LBL_BBOX)
+           transform=b.transAxes, fontsize=7.5, color="0.25", va="top", bbox=LBL_BBOX)
 
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_decomposition.png")
     if save:
-        fig.savefig(out, dpi=160)
+        fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
 
@@ -513,7 +508,7 @@ def roadmap_figure(save=True):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.patches import Rectangle, FancyArrow
+    from matplotlib.patches import Rectangle
 
     fig, ax = plt.subplots(figsize=(11, 5.0))
     ax.set_xlim(0, 10); ax.set_ylim(0, 6.6); ax.axis("off")
@@ -568,7 +563,7 @@ def roadmap_figure(save=True):
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_roadmap.png")
     if save:
-        fig.savefig(out, dpi=160)
+        fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
 
@@ -635,7 +630,7 @@ def alias_cartoon(save=True):
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_alias.png")
     if save:
-        fig.savefig(out, dpi=160)
+        fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
 

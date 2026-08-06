@@ -15,7 +15,7 @@ import pytest
 
 from error_discovery import experiment_robustness as R
 from error_discovery.experiment_form import twin, attractor_traj, EPS
-from error_discovery.experiment_meanstd import _EX, max_mean_over_std
+from error_discovery.experiment_meanstd import max_mean_over_std
 
 
 @pytest.fixture(scope="module")

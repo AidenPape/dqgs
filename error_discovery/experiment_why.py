@@ -35,22 +35,17 @@ import os
 import numpy as np
 import jax.numpy as jnp
 
-# faint white backing for annotations near curves/bands (mask the line behind the text)
-_LBL_BBOX = dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1.0)
-
 from .experiment_form import (twin, attractor_traj, transient_traj, true_transient,
                               err_tendency, forcing_recover, library, _fit, _resid,
-                              _margin, true_term, EPS, DT)
-from .config import RESULTS_DIR
+                              _margin, true_term, DT)
+from .experiment_meanstd import _EX
+from .config import RESULTS_DIR, THRESH
+from .figstyle import DPI, LBL_BBOX
 
 
 # --------------------------------------------------------------------------- #
 # Single-named-term helpers (a recovered error model is c * g(x) * (E x)).
 # --------------------------------------------------------------------------- #
-def _EX(tw, X):
-    return X @ np.asarray(tw.E_full).T
-
-
 def _term_col(tw, X, name):
     Phi, names = library(X, tw)
     return Phi[:, names.index(name)]
@@ -214,7 +209,6 @@ def figure():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    THRESH = 0.1
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.6))
 
     # ----- (a) margin governed by the driver's own |mean|/std -------------- #
@@ -233,10 +227,10 @@ def figure():
     pa = dict(arrowstyle="-", lw=0.6, color="0.4")
     a.annotate("attractor\n(slow driver pinned:\nunidentifiable)", (rm[0], mm[0]),
                xytext=(-6, 30), textcoords="offset points", fontsize=7.5,
-               ha="right", va="bottom", arrowprops=pa, bbox=_LBL_BBOX)
+               ha="right", va="bottom", arrowprops=pa, bbox=LBL_BBOX)
     a.annotate("off-attractor\n(driver excited:\nidentifiable)", (rm[-1], mm[-1]),
                xytext=(-2, -52), textcoords="offset points", fontsize=7.5,
-               ha="center", va="top", arrowprops=pa, bbox=_LBL_BBOX)
+               ha="center", va="top", arrowprops=pa, bbox=LBL_BBOX)
     a.text(0.03, THRESH * 1.3, "identifiable", transform=a.get_yaxis_transform(),
            fontsize=7.5, color="0.3", va="bottom")
     a.text(0.03, THRESH * 0.78, "unidentifiable", transform=a.get_yaxis_transform(),
@@ -279,7 +273,7 @@ def figure():
 
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_why.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 

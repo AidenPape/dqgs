@@ -47,6 +47,7 @@ import numpy as np
 from .experiment_form import twin, attractor_traj, true_transient, EPS
 from .experiment_meanstd import _library, _EX, max_mean_over_std
 from .config import RESULTS_DIR
+from .figstyle import DPI
 
 
 def _design(tw, X, k, drop_true=False):
@@ -199,7 +200,7 @@ def figure():
     ax[1].legend(frameon=False, fontsize=8, loc="upper right")
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_donoharm.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 

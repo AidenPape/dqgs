@@ -23,8 +23,9 @@ import jax
 import jax.numpy as jnp
 
 from .models import TwinModels
-from .discovery import rollout, lm_fit, make_residual, obs_indices
+from .discovery import rollout
 from .config import RESULTS_DIR
+from .figstyle import DPI
 
 DT = 0.1
 EPS = 0.1
@@ -278,7 +279,7 @@ def reanalysis_run():
     ax.set_title(r"Is reanalysis far enough to identify $g=T_{o,1}$?")
     fig.tight_layout()
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    fig.savefig(os.path.join(RESULTS_DIR, "fig_reanalysis.png"), dpi=160); plt.close(fig)
+    fig.savefig(os.path.join(RESULTS_DIR, "fig_reanalysis.png"), dpi=DPI); plt.close(fig)
     np.savez(os.path.join(RESULTS_DIR, "reanalysis_results.npz"),
              biased=np.asarray(r["biased"]), transient=np.asarray(r["transient"]),
              eps=np.asarray([x["eps"] for x in r["rows"]]),
@@ -322,7 +323,7 @@ def run():
     ax[1].set_xlabel("off-attractor (transient) fraction of training data")
     ax[1].set_ylabel("truth margin over best wrong form")
     ax[1].set_title("(b)", fontsize=10, loc="left")
-    fig.tight_layout(); fig.savefig(os.path.join(RESULTS_DIR, "fig_form_identifiability.png"), dpi=160)
+    fig.tight_layout(); fig.savefig(os.path.join(RESULTS_DIR, "fig_form_identifiability.png"), dpi=DPI)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -333,7 +334,7 @@ def run():
     ax.set_xlabel("observation noise (leftmost = noiseless)")
     ax.set_ylabel("P(recover T$_{o,1}$ as top term)")
     ax.legend(frameon=False, fontsize=9)
-    fig.tight_layout(); fig.savefig(os.path.join(RESULTS_DIR, "fig_form_discovery.png"), dpi=160)
+    fig.tight_layout(); fig.savefig(os.path.join(RESULTS_DIR, "fig_form_discovery.png"), dpi=DPI)
     plt.close(fig)
 
     print(f"E1 margin@noise0: attractor {np.median(d1['insample'][0]):.3f}  transient {np.median(d1['generalise'][0]):.2f}")

@@ -36,12 +36,10 @@ quadratic library {const, 36 linear, all pairwise products}.
 import os
 import numpy as np
 
-# faint white backing for annotations near curves/bands (mask the line behind the text)
-_LBL_BBOX = dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1.0)
-
 from .experiment_form import twin, attractor_traj, transient_traj, EPS
 from .experiment_meanstd import _EX, max_mean_over_std, mean_over_std
-from .config import RESULTS_DIR
+from .config import RESULTS_DIR, THRESH
+from .figstyle import DPI, LBL_BBOX
 
 
 def library_matrix(tw, X):
@@ -166,7 +164,6 @@ def figure():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    THRESH = 0.1
     YLIM = (8e-4, 2.0)
     guide = r"$1/(|\mathrm{mean}|/\mathrm{std})$"
 
@@ -189,11 +186,11 @@ def figure():
     ix = names.index("broad")
     a.annotate("broad excitation\n(every mode crosses 0:\nidentifiable)",
                (mm[ix], mg[ix]), xytext=(34, -86), textcoords="offset points",
-               fontsize=7.5, ha="left", va="top", arrowprops=pa, bbox=_LBL_BBOX)
+               fontsize=7.5, ha="left", va="top", arrowprops=pa, bbox=LBL_BBOX)
     ix = names.index("attractor n=4000")
     a.annotate("attractor\n(climatology:\nunidentifiable)",
                (mm[ix], mg[ix]), xytext=(-12, 64), textcoords="offset points",
-               fontsize=7.5, ha="right", va="bottom", arrowprops=pa, bbox=_LBL_BBOX)
+               fontsize=7.5, ha="right", va="bottom", arrowprops=pa, bbox=LBL_BBOX)
     a.text(0.025, THRESH * 1.25, "identifiable", transform=a.get_yaxis_transform(),
            fontsize=7.5, color="0.3", va="bottom")
     a.text(0.025, THRESH * 0.8, "unidentifiable", transform=a.get_yaxis_transform(),
@@ -233,9 +230,9 @@ def figure():
                    arrowprops=dict(arrowstyle="-", lw=0.5,
                                    color=("C3" if nm == "T_o1" else "C0")))
     b.text(11, YLIM[1] * 0.6, r"$|\mathrm{mean}|/\mathrm{std}=10$", fontsize=7,
-           color="0.4", rotation=90, va="top", ha="right", bbox=_LBL_BBOX)
+           color="0.4", rotation=90, va="top", ha="right", bbox=LBL_BBOX)
     b.text(0.02, 0.60, "climatology, $n=4000$ steps", transform=b.transAxes,
-           fontsize=7, color="0.4", ha="left", va="top", bbox=_LBL_BBOX)
+           fontsize=7, color="0.4", ha="left", va="top", bbox=LBL_BBOX)
     b.set_xscale("log"); b.set_yscale("log"); b.set_ylim(*YLIM)
     b.set_xlabel(r"the driver's own $|\mathrm{mean}|/\mathrm{std}$"
                  "\n(on the attractor)")
@@ -246,7 +243,7 @@ def figure():
     fig.legend(hb, lb, loc="lower center", ncol=3, fontsize=7.5, frameon=False,
                bbox_to_anchor=(0.5, 0.0), columnspacing=1.4, handletextpad=0.5)
     out = os.path.join(RESULTS_DIR, "fig_robustness.png")
-    fig.savefig(out, dpi=160); plt.close(fig)
+    fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
 
@@ -262,7 +259,6 @@ def table_figure():
     import matplotlib.pyplot as plt
     from matplotlib.patches import Patch
 
-    THRESH = 0.1
     d = np.load(os.path.join(RESULTS_DIR, "robust_law.npz"), allow_pickle=True)
     names, mm, mg = list(d["names"]), d["max_meanstd"], d["margin"]
 
@@ -314,6 +310,6 @@ def table_figure():
                fontsize=8.5, frameon=False, loc="lower center", ncol=2,
                bbox_to_anchor=(0.5, 0.0))
     out = os.path.join(RESULTS_DIR, "fig_robustness_table.png")
-    fig.savefig(out, dpi=160, bbox_inches="tight")
+    fig.savefig(out, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     return out
