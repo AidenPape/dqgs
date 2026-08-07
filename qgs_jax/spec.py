@@ -24,26 +24,17 @@ Everything here is plain numpy -- it runs once at set-up time.  The JAX code
 never calls back into this module.
 """
 
-import os
-import sys
 from dataclasses import dataclass, field
 from typing import Dict
 
 import numpy as np
 
-# Make sure the bundled ``qgs`` package (help_aiden/qgs/qgs) is importable
-# regardless of the current working directory.
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_QGS_ROOT = os.path.join(os.path.dirname(_HERE), "qgs")
-if _QGS_ROOT not in sys.path:
-    sys.path.insert(0, _QGS_ROOT)
-
-from qgs.params.params import QgParams                       # noqa: E402
-from qgs.functions.tendencies import create_tendencies        # noqa: E402
+from qgs.params.params import QgParams
+from qgs.functions.tendencies import create_tendencies
 
 
 # Reference MAOOAM parameter set (Vannitsem et al. 2015 / De Cruz et al. 2016),
-# identical to qgs/qgs_maooam.py.
+# identical to upstream qgs's qgs_maooam.py example.
 DEFAULT_MAOOAM_PARAMS = dict(
     kd=0.0290, kdp=0.0290, n=1.5, r=1.0e-7, h=136.5, d=1.1e-7,
 )

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# NOT "dqgs" — the FERS project (research/FERS/project/qgs_differentiable) already
+# claims that distribution name and is installed editable in the shared conda env.
+name = "dqgs-error-discovery"
+version = "0.1.0"
+description = "Differentiable MAOOAM: a JAX reimplementation of the qgs spectral model, plus model-error discovery experiments."
+requires-python = ">=3.9"
+dependencies = [
+    "qgs==1.0.0",
+    "jax",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    # qgs's own runtime dependencies, listed explicitly so it can be installed
+    # with --no-deps: upstream declares ipython and jupyter as hard dependencies,
+    # which pull in ~50 packages this project never uses.
+    "numba",
+    "sparse",
+    "pebble",
+    "sympy",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+# Flat layout with several top-level modules (smoke_test.py, tune_demo.py,
+# test_*.py), so setuptools auto-discovery cannot infer the packages.
+[tool.setuptools]
+packages = ["error_discovery", "qgs_jax"]

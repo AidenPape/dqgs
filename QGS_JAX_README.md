@@ -67,15 +67,15 @@ grad = jax.grad(trajectory_loss)(theta0)                # dL/dθ for every param
 
 ## Environment
 
-Requires `jax`, `numba`, `sparse`, `pebble` (the original qgs deps) — all
-installed in the active `base` env. `numpy` x64 is used throughout
+Dependencies are declared in `pyproject.toml`; `pip install -e .` from the repo root
+provides them, including the pinned `qgs==1.0.0`. `numpy` x64 is used throughout
 (`jax_enable_x64`).
 
 ## Notes / scope
 
 - Targets the standard atmosphere(2×2) + ocean(2×4) MAOOAM config, `dynamic_T=False`,
-  no ground, no orography — the configuration in `qgs/qgs_maooam.py`. The assembly
-  raises `NotImplementedError` for unsupported configs.
-- The original `qgs` package is left untouched; everything lives in `help_aiden/`.
+  no ground, no orography — the configuration in upstream qgs's `qgs_maooam.py` example.
+  The assembly raises `NotImplementedError` for unsupported configs.
+- The `qgs` package is an unmodified third-party dependency, pinned to 1.0.0.
 - `Cpa`/`Cpgo` insolation are tuned as scalar amplitudes (`Cpa0`,`Cpgo0`) of their
   fixed spatial pattern.

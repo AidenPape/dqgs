@@ -9,12 +9,10 @@ This imports the original qgs integrator, which sizes a multiprocessing pool to
 ``cpu_count()`` by default; we pass ``num_threads=1`` to avoid that. Run it on its
 own (not from run_all) for the same reason:
 
-    cd help_aiden
     python -m error_discovery.experiment_jax_validation
 """
 
 import os
-import sys
 
 import numpy as np
 
@@ -22,11 +20,6 @@ import jax
 import jax.numpy as jnp
 
 jax.config.update("jax_enable_x64", True)
-
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_ROOT = os.path.dirname(_HERE)
-sys.path.insert(0, _ROOT)
-sys.path.insert(0, os.path.join(_ROOT, "qgs"))
 
 from qgs_jax.spec import extract_spec          # noqa: E402
 from qgs_jax import model                      # noqa: E402

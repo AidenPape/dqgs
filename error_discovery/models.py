@@ -29,26 +29,15 @@ original numpy/numba ``qgs`` (via :mod:`qgs_jax.spec` and the validated
 against the numpy ``f_perturbed`` to machine precision in the test-suite.
 """
 
-import os
-import sys
-
 import numpy as np
 import jax
 import jax.numpy as jnp
 
 jax.config.update("jax_enable_x64", True)
 
-# Make the bundled qgs importable (mirrors qgs_jax.spec).
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_REPO = os.path.dirname(_HERE)
-_QGS_ROOT = os.path.join(_REPO, "qgs")
-for _p in (_REPO, _QGS_ROOT):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-
 from qgs_jax.spec import extract_spec                                  # noqa: E402
 from qgs_jax import model as jmodel                                    # noqa: E402
-from qgs.functions.perturbed_tendencies import (                       # noqa: E402
+from .perturbed_tendencies import (                                    # noqa: E402
     create_exchange_perturbed_tendencies,
 )
 

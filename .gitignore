@@ -1,8 +1,3 @@
-# Vendored upstream qgs (Climdyn/qgs v1.0.0). Kept as a sibling directory so the
-# sys.path lookups in qgs_jax/spec.py and error_discovery/models.py resolve; will be
-# replaced by a pinned `qgs==1.0.0` dependency.
-qgs/
-
 # Agent instructions stay out of the repo.
 CLAUDE.md
 .claude/
@@ -12,6 +7,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ipynb_checkpoints/
+*.egg-info/
 
 # macOS
 .DS_Store

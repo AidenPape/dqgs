@@ -4,7 +4,6 @@ operational and 1:1 with the original numpy/numba ``qgs`` code.
 
 Run with::
 
-    cd help_aiden
     pytest test_qgs_jax.py -v
 
 The suite checks, to machine precision:
@@ -19,7 +18,6 @@ The suite checks, to machine precision:
                                physical parameter is finite and finite-diff-correct.
 """
 
-import os
 import sys
 
 import numpy as np
@@ -29,10 +27,6 @@ import jax
 import jax.numpy as jnp
 
 jax.config.update("jax_enable_x64", True)
-
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.join(_HERE, "qgs"))
 
 from qgs_jax.spec import extract_spec                 # noqa: E402
 from qgs_jax import model, assemble                   # noqa: E402

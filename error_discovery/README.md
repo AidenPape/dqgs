@@ -29,8 +29,9 @@ is the maximum `|mean|/std` over all state modes.
 ## Install
 
 ```bash
-conda env create -f ../qgs/environment.yml   # or use an env with jax, numpy, scipy, sympy
-conda activate qgs
+conda activate dqgs                  # any env with python >= 3.9
+pip install --no-deps qgs==1.0.0     # upstream declares ipython+jupyter; unused here
+pip install -e ..                    # installs this repo and its remaining dependencies
 ```
 
 ## Layout

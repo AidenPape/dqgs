@@ -1,7 +1,7 @@
 import numpy as np
 from qgs.params.params import QgParams
 from qgs.integrators.integrator import RungeKuttaIntegrator
-from qgs.functions.perturbed_tendencies import create_exchange_perturbed_tendencies
+from error_discovery.perturbed_tendencies import create_exchange_perturbed_tendencies
 
 np.random.seed(21217)
 

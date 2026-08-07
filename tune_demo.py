@@ -18,12 +18,8 @@ Experiment
 
 Run::
 
-    cd help_aiden
     python tune_demo.py
 """
-
-import os
-import sys
 
 import numpy as np
 import jax
@@ -31,12 +27,8 @@ import jax.numpy as jnp
 
 jax.config.update("jax_enable_x64", True)
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _HERE)
-sys.path.insert(0, os.path.join(_HERE, "qgs"))
-
-from qgs_jax.spec import extract_spec
-from qgs_jax import model, assemble
+from qgs_jax.spec import extract_spec                 # noqa: E402
+from qgs_jax import model, assemble                   # noqa: E402
 
 
 # Parameters we pretend not to know and will recover.
