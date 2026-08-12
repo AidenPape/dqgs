@@ -149,6 +149,12 @@ def parsimony_floor(n=4000):
     return dict(meanstd=ms, raw_margin=raw, const_margin=const, named=named)
 
 
+def run(n=4000, seed=0):
+    """Both robustness sub-studies: writes robust_law.npz and robust_parsimony.npz."""
+    law_validation(n=n, seed=seed)
+    parsimony_floor(n=n)
+
+
 def figure():
     """Two parallel views of the same quantity, the true form's residual margin
     over its best alias (log y, shared across panels). In both, a margin below the
@@ -244,9 +250,11 @@ def figure():
                bbox_to_anchor=(0.5, 0.0), columnspacing=1.4, handletextpad=0.5)
     out = os.path.join(RESULTS_DIR, "fig_robustness.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
-    return out
+    return [out]
 
 
+# ``table_figure`` renders the same numbers as a table for the manuscript; it is not
+# part of the ``run``/``figure`` pair, so call it directly when the table is wanted.
 def table_figure():
     """The 13 rows behind Fig.~6a as a sorted paired bar chart, so the individual
     dataset-by-dataset numbers (name, max(|mean|/std), median margin) are legible

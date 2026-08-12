@@ -176,3 +176,10 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
     if verbose:
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s total)")
     return out
+
+
+def figure(tag="main"):
+    """The lead-time figures, drawn from ``leadtime_<tag>.npz``. ``plotting`` imports
+    matplotlib at module scope, so it is imported here rather than at the top."""
+    from . import plotting
+    return plotting.make_all(tag)

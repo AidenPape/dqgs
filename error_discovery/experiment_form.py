@@ -263,27 +263,14 @@ def reanalysis(eps_list=(0.1, 0.3, 1.0), taus=(100.0, 20.0, 5.0), n=4000, n_spin
 
 
 def reanalysis_run():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
     r = reanalysis()
-    row = r["rows"][-1]                                  # strongest error (eps=1.0)
-    labels = ["biased\nclimatology", 'true climatology\n("reanalysis")',
-              f"nudged reanalysis\n(τ={row['nudged'][-1][0]:.0f})", "transient\n(off-attractor)"]
-    vals = [r["biased"][0], row["true"][0], row["nudged"][-1][1], r["transient"][0]]
-    fig, ax = plt.subplots(figsize=(6.5, 4))
-    ax.bar(range(4), vals, color=["C0", "C0", "C0", "C2"])
-    ax.axhline(0.1, ls=":", color="grey", lw=1)
-    ax.set_xticks(range(4)); ax.set_xticklabels(labels, fontsize=8)
-    ax.set_ylabel("form-identifiability margin")
-    ax.set_title(r"Is reanalysis far enough to identify $g=T_{o,1}$?")
-    fig.tight_layout()
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    fig.savefig(os.path.join(RESULTS_DIR, "fig_reanalysis.png"), dpi=DPI); plt.close(fig)
     np.savez(os.path.join(RESULTS_DIR, "reanalysis_results.npz"),
              biased=np.asarray(r["biased"]), transient=np.asarray(r["transient"]),
              eps=np.asarray([x["eps"] for x in r["rows"]]),
-             true=np.asarray([x["true"] for x in r["rows"]]))
+             true=np.asarray([x["true"] for x in r["rows"]]),
+             # (tau, margin, std) per nudging timescale; the figure labels itself with tau
+             nudged=np.asarray([x["nudged"] for x in r["rows"]]))
     print(f"biased climatology : margin {r['biased'][0]:+.3f}  T_o1_std {r['biased'][1]:.4f}")
     for x in r["rows"]:
         print(f"eps={x['eps']}: true {x['true'][0]:+.3f} (std {x['true'][1]:.4f})  "
@@ -292,14 +279,32 @@ def reanalysis_run():
     return r
 
 
-# --------------------------------------------------------------------------- #
-# Driver: run all four experiments, save results, render two figures.
-# --------------------------------------------------------------------------- #
-def run():
+def reanalysis_figure():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    d = np.load(os.path.join(RESULTS_DIR, "reanalysis_results.npz"))
+    nud = d["nudged"][-1]                                # strongest error (eps=1.0)
+    labels = ["biased\nclimatology", 'true climatology\n("reanalysis")',
+              f"nudged reanalysis\n(τ={nud[-1][0]:.0f})", "transient\n(off-attractor)"]
+    vals = [d["biased"][0], d["true"][-1][0], nud[-1][1], d["transient"][0]]
+    fig, ax = plt.subplots(figsize=(6.5, 4))
+    ax.bar(range(4), vals, color=["C0", "C0", "C0", "C2"])
+    ax.axhline(0.1, ls=":", color="grey", lw=1)
+    ax.set_xticks(range(4)); ax.set_xticklabels(labels, fontsize=8)
+    ax.set_ylabel("form-identifiability margin")
+    ax.set_title(r"Is reanalysis far enough to identify $g=T_{o,1}$?")
+    fig.tight_layout()
+    out = os.path.join(RESULTS_DIR, "fig_reanalysis.png")
+    fig.savefig(out, dpi=DPI); plt.close(fig)
+    return [out]
+
+
+# --------------------------------------------------------------------------- #
+# Driver: run all four experiments and save; the figures are drawn separately.
+# --------------------------------------------------------------------------- #
+def run():
     d1, d2, d3, d5 = e1(), e2(), e3(), e5()
     os.makedirs(RESULTS_DIR, exist_ok=True)
     np.savez(os.path.join(RESULTS_DIR, "form_results.npz"),
@@ -307,6 +312,29 @@ def run():
              **{f"e2_{k}": v for k, v in d2.items()},
              **{f"e3_{k}": v for k, v in d3.items()},
              **{f"e5_{k}": v for k, v in d5.items()})
+    print(f"E1 margin@noise0: attractor {np.median(d1['insample'][0]):.3f}  transient {np.median(d1['generalise'][0]):.2f}")
+    print(f"E2 margin: frac0 {np.median(d2['margin'][0]):.3f}  frac0.25 {np.median(d2['margin'][2]):.2f}")
+    print(f"E3 recover@1e-3: FD {d3['recover_fd'][3].mean():.2f}  forcing {d3['recover_forcing'][3].mean():.2f}")
+    print(f"E5 rel|delta-m| {np.median(d5['rel_delta']):.3f}  coeff err {np.median(d5['c_err']):.3f}")
+    return d1, d2, d3, d5
+
+
+def _load_form():
+    """Regroup ``form_results.npz`` back into the per-experiment dicts ``run`` saved."""
+    z = np.load(os.path.join(RESULTS_DIR, "form_results.npz"))
+    d = {"e1": {}, "e2": {}, "e3": {}, "e5": {}}
+    for key in z.files:
+        exp, _, name = key.partition("_")
+        d[exp][name] = z[key]
+    return d["e1"], d["e2"], d["e3"]
+
+
+def figure():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    d1, d2, d3 = _load_form()
 
     def band(ax, x, A, **kw):
         ax.plot(x, np.median(A, 1), "o-", **kw)
@@ -323,7 +351,8 @@ def run():
     ax[1].set_xlabel("off-attractor (transient) fraction of training data")
     ax[1].set_ylabel("truth margin over best wrong form")
     ax[1].set_title("(b)", fontsize=10, loc="left")
-    fig.tight_layout(); fig.savefig(os.path.join(RESULTS_DIR, "fig_form_identifiability.png"), dpi=DPI)
+    ident = os.path.join(RESULTS_DIR, "fig_form_identifiability.png")
+    fig.tight_layout(); fig.savefig(ident, dpi=DPI)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -334,11 +363,7 @@ def run():
     ax.set_xlabel("observation noise (leftmost = noiseless)")
     ax.set_ylabel("P(recover T$_{o,1}$ as top term)")
     ax.legend(frameon=False, fontsize=9)
-    fig.tight_layout(); fig.savefig(os.path.join(RESULTS_DIR, "fig_form_discovery.png"), dpi=DPI)
+    disc = os.path.join(RESULTS_DIR, "fig_form_discovery.png")
+    fig.tight_layout(); fig.savefig(disc, dpi=DPI)
     plt.close(fig)
-
-    print(f"E1 margin@noise0: attractor {np.median(d1['insample'][0]):.3f}  transient {np.median(d1['generalise'][0]):.2f}")
-    print(f"E2 margin: frac0 {np.median(d2['margin'][0]):.3f}  frac0.25 {np.median(d2['margin'][2]):.2f}")
-    print(f"E3 recover@1e-3: FD {d3['recover_fd'][3].mean():.2f}  forcing {d3['recover_forcing'][3].mean():.2f}")
-    print(f"E5 rel|delta-m| {np.median(d5['rel_delta']):.3f}  coeff err {np.median(d5['c_err']):.3f}")
-    return d1, d2, d3, d5
+    return [ident, disc]

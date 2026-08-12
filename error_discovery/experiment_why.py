@@ -274,11 +274,10 @@ def figure():
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_why.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
-    return out
+    return [out]
 
 
 def run():
     governing_law()
     global_form_validation()
     lyapunov_ics()
-    return figure()

@@ -101,7 +101,7 @@ def figure():
     out = os.path.join(RESULTS_DIR, "fig_overcomplete.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
-    return out
+    return [out]
 
 
 if __name__ == "__main__":

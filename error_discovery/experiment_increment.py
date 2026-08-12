@@ -125,4 +125,4 @@ def figure():
     fig.tight_layout()
     out = os.path.join(RESULTS_DIR, "fig_increment.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
-    return out
+    return [out]

@@ -109,7 +109,7 @@ def driver_scan(n=4000, reps=20, noise=0.02, seed=0, save=True):
     return rows
 
 
-def figure(rows=None):
+def scan_figure(rows=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -636,12 +636,17 @@ def alias_cartoon(save=True):
 
 
 def run():
-    rows = driver_scan()
-    figure(rows)
+    """Every driver sub-study: writes driver_scan/driver_record/driver_full npz."""
+    driver_scan()
     record_length_scan()
-    tandem_figure()
     full_error_decomposition()
-    decomposition_figure()
-    roadmap_figure()
-    alias_cartoon()
-    return headline_figure()
+
+
+def figure():
+    """Every driver figure. ``scan_figure``, ``headline_figure`` and
+    ``decomposition_figure`` reload the npz ``run`` wrote; ``roadmap_figure`` is a
+    schematic with no data. ``tandem_figure`` and ``alias_cartoon`` still compute
+    their own (small) inputs rather than reloading — splitting those is the
+    remaining piece of this module's cleanup."""
+    return [scan_figure(), headline_figure(), tandem_figure(),
+            decomposition_figure(), roadmap_figure(), alias_cartoon()]

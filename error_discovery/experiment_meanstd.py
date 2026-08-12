@@ -242,4 +242,4 @@ def figure():
     out = os.path.join(RESULTS_DIR, "fig_meanstd.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
-    return out
+    return [out]

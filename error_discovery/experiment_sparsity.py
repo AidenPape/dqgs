@@ -128,3 +128,9 @@ def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
     if verbose:
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s)")
     return out
+
+
+def figure(tag="sparsity"):
+    """The partial-observation figures, drawn from ``sparsity_<tag>.npz``."""
+    from . import plotting
+    return plotting.make_sparsity(tag)

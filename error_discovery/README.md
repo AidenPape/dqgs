@@ -50,21 +50,27 @@ pip install -e ..                    # installs this repo and its remaining depe
 | `experiment_why.py`    | why only off-attractor data identifies the form: governing law, global-form control, Lyapunov provenance |
 | `experiment_driver.py` | which driver is discoverable: per-driver mean/std, the record-length dichotomy (atmosphere curable, ocean temperature not), full-error decomposition (circulation recovered, temperature components not), and presentation figures (experiment roadmap, alias-mechanism cartoon) |
 | `plotting.py`          | manuscript figures from the `.npz` results |
-| `run_all.py`           | one-command driver for every study |
+| `run_all.py`           | one-command driver for every study; the `STUDIES` table is the index |
 
 ## Reproduce
 
 ```bash
+python -m error_discovery.run_all --help       # every study, with a one-line description
 python -m error_discovery.run_all              # lead-time window of discoverability (default)
 python -m error_discovery.run_all --quick      # fast smoke run (minutes)
-python -m error_discovery.run_all --sparsity   # partial-observation study
 python -m error_discovery.run_all --form       # form discovery from trajectories
-python -m error_discovery.run_all --obstruction # near-constant-mode obstruction + eps-scaling
-python -m error_discovery.run_all --reanalysis # is reanalysis far enough?
-python -m error_discovery.run_all --increment  # do DA increments help?
-python -m error_discovery.run_all --robustness # robustness of the |mean|/std diagnostic
-python -m error_discovery.run_all --why        # why only off-attractor data identifies the form
-python -m error_discovery.run_all --driver     # which driver is discoverable (per-driver mean/std, record length)
+```
+
+One study runs per invocation. The flags are generated from `run_all.STUDIES`, so `--help` is
+the authoritative list rather than anything written down here.
+
+Each study module exposes `run()`, which computes and writes a `.npz`, and `figure()`, which
+reloads that `.npz` and draws. Because they are separate, a figure can be redrawn without
+repeating the computation:
+
+```python
+from error_discovery import experiment_form
+experiment_form.figure()        # redraws from results/form_results.npz
 ```
 
 Everything is seeded. The one expensive step, spinning the base model onto the
