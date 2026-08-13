@@ -1,6 +1,6 @@
 """
-error_discovery.experiment_meanstd
-==================================
+error_discovery.experiments.obstruction
+=======================================
 
 Form identifiability is obstructed by near-constant modes, and the obstruction is
 library-dependent.
@@ -15,7 +15,7 @@ driver is a single state mode, g = x[k]. "Form discovery" fits each candidate
 predictor g_j in a library to m and asks whether the true driver is the unique
 best fit (form-identifiability margin = best-wrong-form relative residual minus
 truth residual; truth residual ~ 0 because the true form is in the library, so the
-margin is the best wrong form's residual; > 0.1 means identifiable).
+margin is the best wrong form's residual; above config.THRESH means identifiable).
 
 Two findings:
 
@@ -46,77 +46,11 @@ worst case.
 import os
 import numpy as np
 
-from .experiment_form import twin, attractor_traj, transient_traj, EPS
-from .config import RESULTS_DIR
-from .figstyle import DPI
-
-
-def _EX(tw, X):
-    """The exchange-operator image E x for each row of X."""
-    return X @ np.asarray(tw.E_full).T
-
-
-def mean_over_std(X, k):
-    """|mean|/std of mode k on sample X: how offset-dominated (near-constant) it is."""
-    s = X[:, k].std()
-    return float(abs(X[:, k].mean()) / s) if s > 0 else np.inf
-
-
-def max_mean_over_std(X):
-    """The most near-constant mode sets the strongest cross-product alias."""
-    return max(mean_over_std(X, j) for j in range(X.shape[1]))
-
-
-def _library(X, k, kind):
-    """Candidate predictor columns g_j(x) and names.
-
-    kind="restricted": const + 36 linear + 36 squares (no cross-products) — the
-        physically-motivated set a modeler would propose.
-    kind="full": const + 36 linear + all pairwise products (squares and cross
-        terms) — the adversarial complete quadratic library.
-    """
-    n, nd = X.shape
-    cols = [np.ones(n)] + [X[:, j] for j in range(nd)]
-    names = ["const"] + [f"x{j}" for j in range(nd)]
-    if kind == "restricted":
-        cols += [X[:, j] ** 2 for j in range(nd)]
-        names += [f"x{j}^2" for j in range(nd)]
-    elif kind == "full":
-        for i in range(nd):
-            for j in range(i, nd):
-                cols.append(X[:, i] * X[:, j])
-                names.append(f"x{i}*x{j}")
-    else:
-        raise ValueError(f"unknown library kind: {kind!r}")
-    return cols, names
-
-
-def margin_driver(tw, X, k, kind="full"):
-    """Form-identifiability margin for the true driver g = x[k] on sample X, against
-    the chosen library. Each predictor g_j gets its best single coefficient c_j
-    minimizing ||c_j g_j (E x) - m||; R_j is that relative residual. Returns
-    (margin, truth_residual, best_wrong_residual)."""
-    EX = _EX(tw, X)
-    sq = (EX * EX).sum(1)                                  # ||E x||^2 per row
-    m = EPS * X[:, k][:, None] * EX                        # injected error tendency
-    m2 = float((m * m).sum())
-    cols, names = _library(X, k, kind)
-    R = np.empty(len(cols))
-    for i, g in enumerate(cols):
-        den = float((g * g * sq).sum())                   # <g E x, g E x>
-        num = float((g[:, None] * EX * m).sum())          # <g E x, m>
-        c = num / den if den > 0 else 0.0
-        R[i] = np.sqrt(max(c * c * den - 2 * c * num + m2, 0.0)) / np.sqrt(m2)
-    t = names.index(f"x{k}")
-    others = np.delete(R, t)
-    return float(others.min() - R[t]), float(R[t]), float(others.min())
-
-
-def identifiable_count(tw, X, kind, modes=None):
-    """How many of the candidate drivers are identifiable (margin > 0.1) on X."""
-    modes = range(tw.ndim) if modes is None else modes
-    margins = np.array([margin_driver(tw, X, k, kind)[0] for k in modes])
-    return int((margins > 0.1).sum()), margins
+from .. import figstyle
+from ..config import RESULTS_DIR, EPS, THRESH
+from ..figstyle import DPI
+from ..formfit import twin, attractor_traj, transient_traj
+from ..screening import max_mean_over_std, margin_driver, identifiable_count
 
 
 def run(n=4000, n_transient=4000, seed=0):
@@ -151,7 +85,7 @@ def run(n=4000, n_transient=4000, seed=0):
              ident_full=np.asarray([rows[k]["ident_full"] for k in rows]),
              median_margin_full=np.asarray([rows[k]["median_margin_full"] for k in rows]))
 
-    print(f"identifiable drivers out of {tw.ndim} (margin > 0.1):")
+    print(f"identifiable drivers out of {tw.ndim} (margin > {THRESH}):")
     print(f"{'distribution':32s} {'max|mean|/std':>13s} {'restricted':>11s} {'full':>6s}")
     for name, r in rows.items():
         print(f"{name:32s} {r['max_meanstd']:13.1f} {r['ident_restricted']:11d} {r['ident_full']:6d}")
@@ -175,9 +109,9 @@ def eps_sweep(eps_list=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0), n=4000, n_spin=40000, se
     (its driver stays near-constant for any eps), so the attractor barely moves.
     """
     import jax.numpy as jnp
-    from .models import TwinModels
-    from .discovery import rollout
-    from .experiment_form import DT
+    from ..models import TwinModels
+    from ..discovery import rollout
+    from ..config import DT
     base = twin()
     xa = attractor_traj(base, 2000)[-1]                   # a biased-attractor point (read-only)
     rows = []
@@ -203,9 +137,7 @@ def eps_sweep(eps_list=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0), n=4000, n_spin=40000, se
 
 
 def figure():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
     d = np.load(os.path.join(RESULTS_DIR, "meanstd_results.npz"), allow_pickle=True)
     names = [n.decode() if isinstance(n, bytes) else str(n) for n in d["names"]]
     ndim = int(d["ndim"])

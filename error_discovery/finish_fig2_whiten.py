@@ -27,8 +27,7 @@ import time
 from dataclasses import replace
 
 from .config import ExperimentConfig
-from . import experiment as E
-from . import plotting
+from .experiments import leadtime as E
 
 TAG = "main_whiten"
 
@@ -50,9 +49,9 @@ def main():
                   window_steps=_WINDOWS_EXT, noise_windows=_NOISE_WINDOWS_EXT)
     out = E.run(cfg, verbose=True, whiten=True)
     print("WROTE", out, flush=True)
-    print(plotting.fig_recovery_and_conditioning(TAG), flush=True)
-    print(plotting.fig_noise(TAG), flush=True)
-    print(plotting.fig_coeff_recovery(TAG), flush=True)
+    print(E.fig_recovery_and_conditioning(TAG), flush=True)
+    print(E.fig_noise(TAG), flush=True)
+    print(E.fig_coeff_recovery(TAG), flush=True)
     print(f"FIG2_WHITEN_DONE in {(time.time() - t0)/60:.1f} min", flush=True)
 
 

@@ -1,6 +1,6 @@
 """
-error_discovery.experiment_increment
-====================================
+error_discovery.experiments.increment
+=====================================
 
 Do **DA increments / initialized forecasts** unlock model-error *form* discovery
 where free-running **climatology** cannot?
@@ -31,23 +31,24 @@ import os
 import numpy as np
 import jax.numpy as jnp
 
-from .discovery import rollout
-from .experiment_form import twin, err_tendency, _fit, _resid, _margin, DT, EPS
-from .config import RESULTS_DIR
-from .figstyle import DPI
+from ..discovery import rollout
+from .. import figstyle
+from ..config import RESULTS_DIR, DT, EPS
+from ..figstyle import DPI
+from ..formfit import twin, err_tendency, fit, resid, margin_named, true_term
 
 
 def _attractor_ic(tw):
-    from .experiment import get_attractor_ic
-    from .config import ExperimentConfig
+    from ..attractor import get_attractor_ic
+    from ..config import ExperimentConfig
     return get_attractor_ic(tw, ExperimentConfig(), verbose=False)   # canonical, spun-up
 
 
 def _margin_exc(tw, X):
     """Form-identifiability margin of g=T_o1 on X, plus slow/fast excitation std."""
     m = err_tendency(tw, X)
-    c, nm = _fit(tw, X, m)
-    margin = _margin(_resid(tw, c, X, m), nm, tw)[0]
+    c, nm = fit(tw, X, m)
+    margin = margin_named(resid(tw, c, X, m), nm, true_term(tw))[0]
     return margin, float(X[:, tw.idx_To1].std()), float(X[:, 0].std())
 
 
@@ -96,9 +97,7 @@ def run(n=4000, spin=40000):
 
 
 def figure():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
     d = np.load(os.path.join(RESULTS_DIR, "increment_results.npz"), allow_pickle=True)
     names = [n.decode() if isinstance(n, bytes) else str(n) for n in d["names"]]
     short = ["biased\nclimate", "true climate\n(reanalysis)", "DA fc\nshort (3 d)",

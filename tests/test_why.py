@@ -9,7 +9,7 @@ Encodes the three claims:
 Small reps/sizes keep the suite fast; uses qgs_jax rollouts (single process)."""
 
 import numpy as np
-from error_discovery import experiment_why as W
+from error_discovery.experiments import why as W
 
 
 def test_margin_governed_by_driver_meanstd():

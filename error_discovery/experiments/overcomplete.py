@@ -1,6 +1,6 @@
 """
-error_discovery.experiment_overcomplete
-=======================================
+error_discovery.experiments.overcomplete
+========================================
 
 The over-complete library succeeds off the attractor.
 
@@ -32,10 +32,11 @@ Results -> results/overcomplete_results.npz; figure -> results/fig_overcomplete.
 import os
 import numpy as np
 
-from .experiment_form import twin, attractor_traj, transient_traj, true_transient, EPS
-from .experiment_meanstd import identifiable_count, max_mean_over_std
-from .config import RESULTS_DIR
-from .figstyle import DPI
+from .. import figstyle
+from ..formfit import twin, attractor_traj, transient_traj, true_transient
+from ..screening import identifiable_count, max_mean_over_std
+from ..config import RESULTS_DIR, EPS
+from ..figstyle import DPI
 
 
 def accessible_offattractor(tw, n_seg=8, length=600, drop=50, keep=500):
@@ -73,9 +74,7 @@ def run(n=4000, seed=0, verbose=True):
 
 
 def figure():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
     d = np.load(os.path.join(RESULTS_DIR, "overcomplete_results.npz"), allow_pickle=True)
     names = [n.decode() if isinstance(n, bytes) else str(n) for n in d["names"]]
     ndim = int(d["ndim"])

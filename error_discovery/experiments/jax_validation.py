@@ -52,9 +52,7 @@ def run(nsteps=5000, dt=DT):
 
 
 def figure(nsteps=5000):
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
 
     traj_np, traj_jx, t = run(nsteps=nsteps)
     psi_np = traj_np[:, IDX_PSIA1]

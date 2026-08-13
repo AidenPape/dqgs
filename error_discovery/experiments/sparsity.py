@@ -1,6 +1,6 @@
 """
-error_discovery.experiment_sparsity
-===================================
+error_discovery.experiments.sparsity
+====================================
 
 Differentiable error discovery under *partial / noisy* observations.
 
@@ -23,7 +23,7 @@ versus (a) observation-noise level at a fixed window and (b) window length at a
 fixed noise level, plus the oracle identifiability floor (regression of the
 exact error tendency, which recovers the truth to machine precision).
 
-Results -> ``results/sparsity_<tag>.npz``;  figures via :mod:`error_discovery.plotting`.
+Results -> ``results/sparsity_<tag>.npz``.
 """
 
 import os
@@ -32,10 +32,12 @@ import time
 import numpy as np
 import jax.numpy as jnp
 
-from .config import ExperimentConfig, RESULTS_DIR, steps_to_days
-from .models import TwinModels, obs_mask
-from .discovery import rollout, recover
-from .experiment import get_attractor_ic, build_segments
+from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..models import TwinModels, obs_mask
+from ..discovery import rollout, recover
+from .. import figstyle
+from ..attractor import get_attractor_ic, build_segments
+from ..figstyle import DPI, LBL_BBOX
 
 OBS_KINDS = ("full", "atmos", "ocean", "temp")
 
@@ -129,8 +131,91 @@ def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s)")
     return out
 
+# --------------------------------------------------------------------------- #
+# Figures. Each reloads the .npz above; none of them computes.
+# --------------------------------------------------------------------------- #
+def _load_sparsity(tag):
+    return np.load(os.path.join(RESULTS_DIR, f"sparsity_{tag}.npz"), allow_pickle=True)
+
+
+_OBS_LABEL = {"full": "full (36)", "atmos": "atmosphere (20)",
+              "ocean": "ocean (16)", "temp": "temperatures (18)"}
+
+
+def fig_sparsity_noise(tag="sparsity"):
+    """Recovery error vs observation noise, one curve per observation operator."""
+    plt = figstyle.pyplot()
+    d = _load_sparsity(tag)
+    obs = [o.decode() if isinstance(o, bytes) else str(o) for o in d["obs_kinds"]]
+    etas = d["noise_levels"]
+    rel = d["rel_noise"]                       # (nO, nEta, nIC, nSeed)
+    floor = float(d["oracle_floor"])
+    wdays = float(d["noise_window_days"])
+    # plot eta=0 as a small floor value so it shows on a log axis
+    xed = np.array([e if e > 0 else etas[etas > 0].min() / 3 for e in etas])
+
+    fig, ax = plt.subplots(figsize=(6.6, 4.4))
+    for io, o in enumerate(obs):
+        med = np.nanmedian(rel[io], axis=(1, 2))
+        lo, hi = np.nanpercentile(rel[io], [25, 75], axis=(1, 2))
+        line, = ax.plot(xed, med, "o-", lw=2, label=_OBS_LABEL.get(o, o))
+        ax.fill_between(xed, lo, hi, color=line.get_color(), alpha=0.15)
+    ax.axhline(0.1, ls=":", color="grey", lw=1)
+    # left edge is clear (all curves are well below 0.1 at the noiseless point); the
+    # right edge is where several curves cross 0.1, so the old right-anchored label sat on them
+    ax.text(xed[0], 0.105, "10% (usable)", color="grey", fontsize=8, ha="left",
+            va="bottom", bbox=LBL_BBOX)
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_ylim(1.5e-3, 3.0)            # focus on the data; oracle floor is far below (annotated)
+    ax.set_xlabel(r"observation noise $\eta$ (relative; leftmost = noiseless)")
+    ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
+    ax.legend(frameon=False, fontsize=8, loc="upper left")
+    ax.text(0.985, 0.02, f"oracle (exact tendency) ≈ {floor:.0e} — off scale below",
+            transform=ax.transAxes, fontsize=7.5, style="italic", color="0.4", ha="right")
+    fig.tight_layout()
+    out = os.path.join(RESULTS_DIR, f"fig_sparsity_noise_{tag}.png")
+    fig.savefig(out, dpi=DPI); plt.close(fig)
+    return out
+
+
+def fig_sparsity_window(tag="sparsity"):
+    """Recovery error vs window per observation operator at fixed noise."""
+    plt = figstyle.pyplot()
+    d = _load_sparsity(tag)
+    obs = [o.decode() if isinstance(o, bytes) else str(o) for o in d["obs_kinds"]]
+    wd = d["window_days"]; rel = d["rel_window"]; eta = float(d["eta_fix"])
+    fig, ax = plt.subplots(figsize=(6.6, 4.4))
+    for io, o in enumerate(obs):
+        med = np.nanmedian(rel[io], axis=(1, 2))
+        ax.plot(wd, med, "o-", label=_OBS_LABEL.get(o, o))
+    ax.axhline(0.1, ls=":", color="grey", lw=1)
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xlabel("optimisation window  [days]")
+    ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
+    ax.set_title(fr"Discovery vs window at fixed noise $\eta={eta:.0e}$")
+    ax.legend(frameon=False, fontsize=8)
+    fig.tight_layout()
+    out = os.path.join(RESULTS_DIR, f"fig_sparsity_window_{tag}.png")
+    fig.savefig(out, dpi=DPI); plt.close(fig)
+    return out
+
+
+def summarize_sparsity(tag="sparsity"):
+    d = _load_sparsity(tag)
+    obs = [o.decode() if isinstance(o, bytes) else str(o) for o in d["obs_kinds"]]
+    etas = d["noise_levels"]
+    rel = d["rel_noise"]
+    print(f"== sparsity summary [{tag}] (window {float(d['noise_window_days']):.0f} d) ==")
+    print(f"oracle (exact-tendency) floor: {float(d['oracle_floor']):.2e}")
+    print("median rel_err by obs operator vs noise eta:")
+    print("  eta:        " + "  ".join(f"{e:7.0e}" for e in etas))
+    for io, o in enumerate(obs):
+        med = np.nanmedian(rel[io], axis=(1, 2))
+        print(f"  {o:10s} " + "  ".join(f"{m:7.3f}" for m in med))
+    return d
+
 
 def figure(tag="sparsity"):
-    """The partial-observation figures, drawn from ``sparsity_<tag>.npz``."""
-    from . import plotting
-    return plotting.make_sparsity(tag)
+    figs = [fig_sparsity_noise(tag), fig_sparsity_window(tag)]
+    summarize_sparsity(tag)
+    return figs

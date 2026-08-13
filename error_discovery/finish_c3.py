@@ -18,16 +18,15 @@ Prints 'C3_DONE' on success so a watcher can grep for completion.
 """
 import time
 
-from . import experiment_sparsity as S
-from . import plotting
+from .experiments import sparsity as S
 
 
 def main():
     t0 = time.time()
     out = S.run(tag="sparsity", whiten=True, verbose=True)
     print("WROTE", out, flush=True)
-    print(plotting.fig_sparsity_noise("sparsity"), flush=True)
-    print(plotting.fig_sparsity_window("sparsity"), flush=True)
+    print(S.fig_sparsity_noise("sparsity"), flush=True)
+    print(S.fig_sparsity_window("sparsity"), flush=True)
     print(f"C3_DONE in {(time.time() - t0)/60:.0f} min", flush=True)
 
 

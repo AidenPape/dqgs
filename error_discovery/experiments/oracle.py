@@ -1,5 +1,5 @@
 """
-error_discovery.experiment_oracle
+error_discovery.experiments.oracle
 ==================================
 
 C1 (reviewer point #8): diagnose the ~20%% low bias of the ocean-temperature
@@ -25,8 +25,9 @@ Read-only on the cached attractor IC; no result files are written.
 import numpy as np
 import jax
 
-from .models import TwinModels
-from .experiment_form import attractor_traj, err_tendency, EPS
+from ..config import EPS
+from ..models import TwinModels
+from ..formfit import attractor_traj, err_tendency
 
 # active modes in the mixed error g = theta_a1 + T_o1 + psi_a1
 PSI_A1, THETA_A1, T_O1 = 0, 10, 28

@@ -21,9 +21,10 @@ The studies map onto the paper as follows: the default lead-time study and
 noise, partial observations); ``--form``, ``--obstruction``, ``--reanalysis`` and
 ``--increment`` cover unknown-form discovery and its identifiability boundary.
 
-``experiment_jax_validation`` and ``experiment_oracle`` are deliberately not here.
-The first sizes a multiprocessing pool to ``cpu_count()`` at import; the second
-writes no files and hardcodes a non-default ``g_coeffs``. Run those directly.
+``experiments.jax_validation`` and ``experiments.oracle`` are deliberately not
+here. The first sizes a multiprocessing pool to ``cpu_count()`` at import; the
+second writes no files and hardcodes a non-default ``g_coeffs``. Run those
+directly.
 """
 
 import argparse
@@ -35,8 +36,9 @@ from dataclasses import dataclass, replace
 class Study:
     """One study: which module implements it and how to drive it.
 
-    ``steps`` names the compute functions to call in order — all but two studies
-    just have ``run``. ``figure`` names the drawing entry point.
+    ``steps`` names the compute functions to call in order — most studies just
+    have ``run``; ``--roadmap`` is a schematic with nothing to compute and so
+    lists none. ``figure`` names the drawing entry point.
     """
 
     module: str
@@ -50,45 +52,60 @@ class Study:
 DEFAULT = "leadtime"
 
 STUDIES = {
+    # --- known form: how far ahead, and from which observations? -------------- #
     "leadtime": Study(
-        "experiment", wants_cfg=True,
+        "leadtime", wants_cfg=True,
         help="lead-time window of discoverability (the default study)"),
     "sparsity": Study(
-        "experiment_sparsity", default_tag="sparsity",
+        "sparsity", default_tag="sparsity",
         help="partial-observation study (which variables are observed)"),
+    # --- unknown form: can it be discovered at all, and from what data? ------- #
     "form": Study(
-        "experiment_form",
+        "form",
         help="form discovery from trajectories (E1-E5)"),
     "obstruction": Study(
-        "experiment_meanstd", steps=("run", "eps_sweep"),
+        "obstruction", steps=("run", "eps_sweep"),
         help="near-constant-mode identifiability obstruction + eps-scaling"),
     "reanalysis": Study(
-        "experiment_form", steps=("reanalysis_run",), figure="reanalysis_figure",
+        "reanalysis",
         help="is reanalysis far enough to identify the error form?"),
     "increment": Study(
-        "experiment_increment",
+        "increment",
         help="do DA increments unlock discovery?"),
-    "robustness": Study(
-        "experiment_robustness",
-        help="robustness of the mean/std diagnostic (approximate law + parsimony floor)"),
     "why": Study(
-        "experiment_why",
+        "why",
         help="why only off-attractor data identifies the form (governing law, "
              "global-form control, Lyapunov provenance)"),
-    "driver": Study(
-        "experiment_driver",
-        help="which driver is discoverable: per-driver mean/std and the record-length "
-             "dichotomy (atmosphere curable, ocean temperature not)"),
+    "robustness": Study(
+        "robustness",
+        help="robustness of the mean/std diagnostic (approximate law + parsimony floor)"),
     "overcomplete": Study(
-        "experiment_overcomplete",
+        "overcomplete",
         help="the over-complete library succeeds off the attractor (boundary complement)"),
     "donoharm": Study(
-        "experiment_donoharm",
+        "donoharm",
         help="does an L1/sparsity penalty rescue the attractor? (no, under model-form error)"),
     "climatology": Study(
-        "experiment_climatology",
+        "climatology",
         help="climatology fidelity of the recovered correction (the error is "
              "climatologically silent)"),
+    # --- which driver? (one file per question, split out of experiment_driver) - #
+    "driver-scan": Study(
+        "driver_scan",
+        help="which driver is discoverable on the attractor: margin vs the driver's "
+             "own mean/std"),
+    "driver-record": Study(
+        "driver_record",
+        help="does a longer record help? (atmosphere yes, ocean temperature never)"),
+    "driver-mixed": Study(
+        "driver_mixed",
+        help="all three drivers active at once: joint coefficient recovery vs noise"),
+    "alias": Study(
+        "alias",
+        help="the alias mechanism in three panels (near-constant mode times a driver)"),
+    "roadmap": Study(
+        "roadmap", steps=(),
+        help="schematic of how the injected error is used (no computation)"),
 }
 
 
@@ -113,7 +130,7 @@ def _config(args):
 def dispatch(name, args):
     """Run one study and return the figure paths it wrote."""
     s = STUDIES[name]
-    mod = importlib.import_module(f".{s.module}", __package__)
+    mod = importlib.import_module(f".experiments.{s.module}", __package__)
 
     # Imports stay inside dispatch: every study module pulls in jax, so importing
     # the whole table up front would cost seconds on `--help`.
@@ -147,7 +164,9 @@ def main(argv=None):
             study.add_argument(f"--{name}", action="store_true", help=s.help)
     args = ap.parse_args(argv)
 
-    chosen = next((n for n in STUDIES if n != DEFAULT and getattr(args, n)), DEFAULT)
+    # argparse turns --driver-scan into args.driver_scan
+    chosen = next((n for n in STUDIES
+                   if n != DEFAULT and getattr(args, n.replace("-", "_"))), DEFAULT)
     _print_figs(dispatch(chosen, args))
 
 

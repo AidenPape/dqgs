@@ -13,9 +13,9 @@ Run:  pytest error_discovery/test_robustness.py -v
 import numpy as np
 import pytest
 
-from error_discovery import experiment_robustness as R
-from error_discovery.experiment_form import twin, attractor_traj, EPS
-from error_discovery.experiment_meanstd import max_mean_over_std
+from error_discovery.experiments import robustness as R
+from error_discovery.formfit import twin, attractor_traj, EPS
+from error_discovery.screening import max_mean_over_std
 
 
 @pytest.fixture(scope="module")

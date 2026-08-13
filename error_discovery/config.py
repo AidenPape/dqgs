@@ -33,7 +33,33 @@ RESULTS_DIR = os.path.join(_HERE, "results")
 IC_CACHE = os.path.join(RESULTS_DIR, "attractor_ic.npz")
 
 # Form-identifiability margin below which a driver counts as unidentifiable.
+#
+# OPEN QUESTION (flagged 2026-08-13). This number is not derived. It is a round 10%:
+# the manuscript defines it as "the truth beats every wrong form by more than 10% of
+# the error magnitude", and says the continuous margin is what is reported and that
+# the 0.1 label is "a secondary summary". No note anywhere derives it from the noise
+# level, the bootstrap spread, or any statistical criterion.
+#
+# Where it is load-bearing rather than cosmetic: `screening.identifiable_count` (the
+# "N of 36 drivers identifiable" headline) and `experiments/robustness.parsimony_floor`
+# both apply it as a hard cut to a continuous quantity. Everywhere else it is a line
+# on a plot.
+#
+# Worth investigating: (1) the studies already bootstrap the margin (reps=20-40), so a
+# threshold could be set relative to its own sampling spread instead of fixed; (2) the
+# governing law says margin ~ 1/(|mean|/std), so THRESH=0.1 is equivalent to cutting at
+# |mean|/std ~ 10 — which may be the more natural place to put it, since that is a
+# statement about the data distribution rather than about residuals; (3) the manuscript
+# already concedes borderline cases flip between 0.03 and 0.3, but no sweep exists.
+#
+# Changing this one number now re-labels every verdict and every figure consistently,
+# which it did not before 2026-08-13 (two verdict sites had it hardcoded).
 THRESH = 0.1
+
+# Amplitude of the injected error: lambda'_eff = lambda' * [1 + eps * g(x)].
+# The whole form-discovery family uses this one value; the lead-time sweep reaches
+# it through ``ExperimentConfig.eps`` so it can be overridden per run.
+EPS = 0.1
 
 # Initial-condition spin-up recipe (kept fixed so the cached attractor state is
 # reproducible from scratch, independent of the noise seed).
@@ -48,7 +74,7 @@ class ExperimentConfig:
     # injected ("true") model error:  lambda'_eff = lambda' * [1 + eps * g(x)],
     # g(x) = a0 + a1*theta_{a,1} + a2*T_{o,1} + a3*psi_{a,1}.
     # Default matches the project's real experiment: g(x) = T_{o,1}.
-    eps: float = 0.1
+    eps: float = EPS
     g_coeffs: tuple = (0.0, 0.0, 1.0, 0.0)
 
     dt: float = DT

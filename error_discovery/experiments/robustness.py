@@ -1,5 +1,5 @@
 """
-error_discovery.experiment_robustness
+error_discovery.experiments.robustness
 ======================================
 
 Stress tests of the form-identifiability argument, in response to specific
@@ -36,10 +36,11 @@ quadratic library {const, 36 linear, all pairwise products}.
 import os
 import numpy as np
 
-from .experiment_form import twin, attractor_traj, transient_traj, EPS
-from .experiment_meanstd import _EX, max_mean_over_std, mean_over_std
-from .config import RESULTS_DIR, THRESH
-from .figstyle import DPI, LBL_BBOX
+from .. import figstyle
+from ..formfit import twin, attractor_traj, transient_traj
+from ..screening import exchange_image, max_mean_over_std, mean_over_std
+from ..config import RESULTS_DIR, THRESH, EPS
+from ..figstyle import DPI, LBL_BBOX
 
 
 def library_matrix(tw, X):
@@ -58,7 +59,7 @@ def library_matrix(tw, X):
         for j in range(i, nd):
             cols.append(X[:, i] * X[:, j]); names.append(f"x{i}*x{j}"); order.append(2)
     G = np.stack(cols, 1)                          # (n, P)
-    EX = _EX(tw, X)
+    EX = exchange_image(tw, X)
     sq = (EX * EX).sum(1)                           # (n,)
     den = (G * G).T @ sq                            # (P,)
     return G, names, np.asarray(order), EX, sq, den
@@ -140,7 +141,7 @@ def parsimony_floor(n=4000):
     np.savez(os.path.join(RESULTS_DIR, "robust_parsimony.npz"),
              meanstd=ms, raw_margin=raw, const_margin=const,
              named=np.asarray(list(named.items()), dtype=object))
-    proof = const < 0.1                                     # unidentifiable even vs the constant
+    proof = const < THRESH                                  # unidentifiable even vs the constant
     print(f"drivers unidentifiable against the constant (parsimony-proof): "
           f"{int(proof.sum())}/{tw.ndim}")
     print(f"{'driver':9s} {'|mean|/std':>10s} {'raw margin':>11s} {'const margin':>12s} {'1/|m|/std':>10s}")
@@ -166,9 +167,7 @@ def figure():
     against the *constant* alone (blue, the floor no complexity prior can lift); the
     constant margin follows 1/(driver's own |mean|/std), so offset-dominated drivers
     (|mean|/std > 10, right of the dotted line) stay unidentifiable under any prior."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
 
     YLIM = (8e-4, 2.0)
     guide = r"$1/(|\mathrm{mean}|/\mathrm{std})$"
@@ -262,9 +261,7 @@ def table_figure():
     ``law_validation``; adds nothing new. Rows sorted worst-pinned to best-excited,
     matching the reading order "more excitation -> lower max(|mean|/std) -> higher
     margin" of the panel it accompanies."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
     from matplotlib.patches import Patch
 
     d = np.load(os.path.join(RESULTS_DIR, "robust_law.npz"), allow_pickle=True)

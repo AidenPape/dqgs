@@ -14,11 +14,11 @@ Run:  pytest error_discovery/test_climatology.py -v
 
 import numpy as np
 
-from error_discovery import experiment_climatology as C
+from error_discovery.experiments import climatology as C
 from error_discovery.config import ExperimentConfig
 from error_discovery.models import TwinModels
 from error_discovery.discovery import rollout
-from error_discovery.experiment import get_attractor_ic
+from error_discovery.attractor import get_attractor_ic
 
 
 def test_error_is_climatologically_small():

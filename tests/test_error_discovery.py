@@ -26,7 +26,7 @@ import pytest
 
 from error_discovery.models import TwinModels, obs_mask
 from error_discovery import discovery as D
-from error_discovery.experiment import get_attractor_ic
+from error_discovery.attractor import get_attractor_ic
 from error_discovery.config import ExperimentConfig
 
 
@@ -148,15 +148,16 @@ def test_partial_obs_recovery_noiseless(tw, attractor):
 
 
 # ---- 11. unknown-form experiments (E1-E5) ---------------------------------- #
-from error_discovery import experiment_form as Fm
+from error_discovery import formfit as Fm
+from error_discovery.experiments import form as Ef, reanalysis as Er
 
 
 def test_form_fit_recovers_truth_on_excited_data():
     tw = Fm.twin()
     X = Fm.true_transient(tw, 200, seed=1)[:-1]
     m = Fm.err_tendency(tw, X)
-    c, nm = Fm._fit(tw, X, m)
-    R = Fm._resid(tw, c, X, m)
+    c, nm = Fm.fit(tw, X, m)
+    R = Fm.resid(tw, c, X, m)
     assert nm[int(np.argmin(R))] == Fm.true_term(tw)
     assert abs(c[nm.index(Fm.true_term(tw))] - 0.1) < 0.02
 
@@ -167,21 +168,21 @@ def test_forcing_recovers_tendency_and_form():
     m = Fm.err_tendency(tw, Xt[:-1])
     dhat = Fm.forcing_recover(tw, Xt)
     assert np.linalg.norm(dhat - m) / np.linalg.norm(m) < 0.3          # E5
-    c, nm = Fm._fit(tw, Xt[:-1], dhat)
-    assert nm[int(np.argmin(Fm._resid(tw, c, Xt[:-1], dhat)))] == Fm.true_term(tw)
+    c, nm = Fm.fit(tw, Xt[:-1], dhat)
+    assert nm[int(np.argmin(Fm.resid(tw, c, Xt[:-1], dhat)))] == Fm.true_term(tw)
 
 
 def test_naive_fd_does_not_recover_form():
     """E3 contrast: the tiny error is below finite-difference truncation."""
     tw = Fm.twin()
     Xt = Fm.true_transient(tw, 201, seed=3)
-    c, nm = Fm._fit(tw, Xt[:-1], Fm.fd_tendency(tw, Xt))
-    assert nm[int(np.argmin(Fm._resid(tw, c, Xt[:-1], Fm.fd_tendency(tw, Xt))))] != Fm.true_term(tw)
+    c, nm = Fm.fit(tw, Xt[:-1], Fm.fd_tendency(tw, Xt))
+    assert nm[int(np.argmin(Fm.resid(tw, c, Xt[:-1], Fm.fd_tendency(tw, Xt))))] != Fm.true_term(tw)
 
 
 def test_excitation_restores_identifiability():
     """E1/E2: attractor-only is ambiguous; a transient test set is decisive."""
-    d = Fm.e1(noises=(0.0,), reps=3)
+    d = Ef.e1(noises=(0.0,), reps=3)
     assert np.median(d["insample"][0]) < 0.1
     assert np.median(d["generalise"][0]) > 0.5
 
@@ -189,7 +190,7 @@ def test_excitation_restores_identifiability():
 def test_reanalysis_climatology_not_far_enough():
     """Sampling the true climatology (even nudged) doesn't identify the form;
     only off-attractor (transient) states do."""
-    r = Fm.reanalysis(eps_list=(0.1,), taus=(20.0,), n=1500, n_spin=10000)
+    r = Er.reanalysis(eps_list=(0.1,), taus=(20.0,), n=1500, n_spin=10000)
     assert r["biased"][0] < 0.1 and r["rows"][0]["true"][0] < 0.1
     assert r["transient"][0] > 0.5
 

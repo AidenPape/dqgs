@@ -1,6 +1,6 @@
 """
-error_discovery.experiment_why
-==============================
+error_discovery.experiments.why
+===============================
 
 Why does form discovery succeed only on off-attractor / transient data? This module
 turns that empirical asymmetry (E1/E2 in ``experiment_form``) into an explained,
@@ -35,12 +35,13 @@ import os
 import numpy as np
 import jax.numpy as jnp
 
-from .experiment_form import (twin, attractor_traj, transient_traj, true_transient,
-                              err_tendency, forcing_recover, library, _fit, _resid,
-                              _margin, true_term, DT)
-from .experiment_meanstd import _EX
-from .config import RESULTS_DIR, THRESH
-from .figstyle import DPI, LBL_BBOX
+from ..formfit import (twin, attractor_traj, transient_traj, true_transient,
+                       err_tendency, forcing_recover, library, fit, resid,
+                       margin_named, true_term)
+from .. import figstyle
+from ..config import RESULTS_DIR, THRESH, DT
+from ..figstyle import DPI, LBL_BBOX
+from ..screening import exchange_image
 
 
 # --------------------------------------------------------------------------- #
@@ -53,14 +54,14 @@ def _term_col(tw, X, name):
 
 def _fit_one(tw, X, m, name):
     """Least-squares coefficient of the single term c * g_name(x) * (E x) for m."""
-    pred = _term_col(tw, X, name)[:, None] * _EX(tw, X)        # (n, ndim) per unit c
+    pred = _term_col(tw, X, name)[:, None] * exchange_image(tw, X)        # (n, ndim) per unit c
     den = float((pred * pred).sum())
     return float((pred * m).sum() / den) if den > 0 else 0.0
 
 
 def _relerr_one(tw, c, name, X, m):
     """Relative L2 error of the model c * g_name(x) * (E x) against m on X."""
-    pred = c * _term_col(tw, X, name)[:, None] * _EX(tw, X)
+    pred = c * _term_col(tw, X, name)[:, None] * exchange_image(tw, X)
     return float(np.linalg.norm(pred - m) / np.linalg.norm(m))
 
 
@@ -99,8 +100,8 @@ def governing_law(fracs=None, n=2000, reps=30, seed=0, save=True):
                 X.append(Xtr[it]); m.append(mtr[it])
             X = np.concatenate(X, 0); m = np.concatenate(m, 0)
             r[i, rep] = _driver_meanstd(X, tw)
-            c, nm = _fit(tw, X, m)
-            margin[i, rep] = _margin(_resid(tw, c, X, m), nm, tw)[0]
+            c, nm = fit(tw, X, m)
+            margin[i, rep] = margin_named(resid(tw, c, X, m), nm, true_term(tw))[0]
     if save:
         os.makedirs(RESULTS_DIR, exist_ok=True)
         np.savez(os.path.join(RESULTS_DIR, "why_law.npz"),
@@ -145,8 +146,8 @@ def global_form_validation(n=2000, reps=30, seed=0, window=400, save=True):
         # realistic off-attractor recovery (forcing recovery + competition, as in E5)
         Xt = true_transient(tw, window + 1, seed=700 + rep)
         dhat = forcing_recover(tw, Xt)
-        c_all, nm = _fit(tw, Xt[:-1], dhat)
-        sel = int(np.argmin(_resid(tw, c_all, Xt[:-1], dhat)))
+        c_all, nm = fit(tw, Xt[:-1], dhat)
+        sel = int(np.argmin(resid(tw, c_all, Xt[:-1], dhat)))
         sel_correct += int(nm[sel] == tname)
         c_rec, rec_name = c_all[nm.index(tname)], tname     # recovered true-form coefficient
         # exact test sets: an attractor sample (out-of-regime) and held-out off-attractor (in)
@@ -155,8 +156,8 @@ def global_form_validation(n=2000, reps=30, seed=0, window=400, save=True):
         res["true_recOff_testAtt"][rep] = _relerr_one(tw, c_rec, rec_name, Xa, ma)
         res["true_recOff_testOff"][rep] = _relerr_one(tw, c_rec, rec_name, Xoff, moff)
         # best ALIAS, exact fit on the attractor (its strongest possible case)
-        ca, _ = _fit(tw, Xa, ma)
-        R = _resid(tw, ca, Xa, ma); R[nm.index(tname)] = np.inf
+        ca, _ = fit(tw, Xa, ma)
+        R = resid(tw, ca, Xa, ma); R[nm.index(tname)] = np.inf
         j = int(np.argmin(R)); aname = nm[j]; alias_names.append(aname)
         res["alias_fitAtt_testAtt"][rep] = _relerr_one(tw, ca[j], aname, Xa, ma)
         res["alias_fitAtt_testOff"][rep] = _relerr_one(tw, ca[j], aname, Xoff, moff)
@@ -181,8 +182,8 @@ def lyapunov_ics(n_ic=5, block=200, n_blocks=600, drop=120, save=True):
     """Largest Lyapunov exponent of the base model over several widely-separated
     attractor initial conditions (committed provenance for "identifiability, not
     chaos"). Deterministic: ICs are sampled from the cached-IC attractor rollout."""
-    from .discovery import lyapunov_time
-    from .config import steps_to_days
+    from ..discovery import lyapunov_time
+    from ..config import steps_to_days
     tw = twin()
     Xlong = attractor_traj(tw, 50000)
     idx = np.linspace(0, len(Xlong) - 1, n_ic).astype(int)
@@ -205,9 +206,7 @@ def lyapunov_ics(n_ic=5, block=200, n_blocks=600, drop=120, save=True):
 
 # --------------------------------------------------------------------------- #
 def figure():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
 
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.6))
 

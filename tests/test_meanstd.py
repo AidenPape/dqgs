@@ -15,8 +15,8 @@ Run:  pytest error_discovery/test_meanstd.py -v
 import numpy as np
 import pytest
 
-from error_discovery import experiment_meanstd as M
-from error_discovery.experiment_form import twin, attractor_traj
+from error_discovery.experiments import obstruction as M
+from error_discovery.formfit import twin, attractor_traj
 
 
 @pytest.fixture(scope="module")

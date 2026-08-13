@@ -1,6 +1,6 @@
 """
-error_discovery.experiment_donoharm
-===================================
+error_discovery.experiments.donoharm
+====================================
 
 Does sparsity ("do-no-harm" L1 regularization) rescue form identifiability on the
 attractor?
@@ -44,18 +44,19 @@ Results -> results/donoharm_results.npz; figure -> results/fig_donoharm.png.
 import os
 import numpy as np
 
-from .experiment_form import twin, attractor_traj, true_transient, EPS
-from .experiment_meanstd import _library, _EX, max_mean_over_std
-from .config import RESULTS_DIR
-from .figstyle import DPI
+from .. import figstyle
+from ..formfit import twin, attractor_traj, true_transient
+from ..screening import candidate_library, exchange_image, max_mean_over_std
+from ..config import RESULTS_DIR, EPS
+from ..figstyle import DPI
 
 
 def _design(tw, X, k, drop_true=False):
     """Full-quadratic library values Phi, exchange image EX, weight w=|Ex|^2, exact
     tendency m=eps*x[k]*(Ex), and the true-term index. If drop_true, remove the
     column x[k] so the true closure is not exactly representable."""
-    cols, names = _library(X, k, "full")
-    EX = _EX(tw, X)
+    cols, names = candidate_library(X, k, "full")
+    EX = exchange_image(tw, X)
     w = (EX * EX).sum(1)
     m = EPS * X[:, k][:, None] * EX
     ti = names.index(f"x{k}")
@@ -100,9 +101,9 @@ def _lasso_path(G, b, yty, n_alpha=30, n_sweeps=250, tol=1e-10):
 def _generalize(tw, c, names, k, Xtest):
     """Relative residual of a fitted library model (coeffs c over `names`) in
     predicting the true error tendency on a held-out distribution Xtest."""
-    colsT, namesT = _library(Xtest, k, "full")
+    colsT, namesT = candidate_library(Xtest, k, "full")
     idx = [namesT.index(nm) for nm in names]
-    EXt = _EX(tw, Xtest); mt = EPS * Xtest[:, k][:, None] * EXt
+    EXt = exchange_image(tw, Xtest); mt = EPS * Xtest[:, k][:, None] * EXt
     pred = (np.stack([colsT[i] for i in idx], 1) @ c)[:, None] * EXt
     return float(np.linalg.norm(pred - mt) / np.linalg.norm(mt))
 
@@ -160,9 +161,7 @@ def run(n=4000, seed=0, verbose=True):
 
 
 def figure():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
     d = np.load(os.path.join(RESULTS_DIR, "donoharm_results.npz"), allow_pickle=True)
     eps = float(d["eps"])
     fig, ax = plt.subplots(1, 2, figsize=(9.5, 4))

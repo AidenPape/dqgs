@@ -1,22 +1,138 @@
 """
-error_discovery.plotting
-========================
+error_discovery.experiments.leadtime
+====================================
 
-Manuscript figures, generated from ``leadtime_<tag>.npz``.  Written to ``results/``.
+The lead-time error-discovery sweep — the headline study, and the default flag.
+
+Pipeline (fully reproducible from a seed; the expensive attractor spin-up is
+cached to ``results/attractor_ic.npz`` and reused):
+
+1. Load (or build + cache) a spun-up base-model attractor state.
+2. Build one long truth trajectory with the perturbed model and slice ``n_ic``
+   independent segments out of it.
+3. Estimate the base model's Lyapunov time (context; this config is only weakly
+   chaotic).
+4. Noiseless sweep: for each window and segment, recover the error coefficients
+   with Levenberg-Marquardt and record recovery error and cond(J^T J).
+5. Noise sweep: for a subset of windows, repeat with observation noise.
+
+Results -> ``results/leadtime_<tag>.npz``.  The headline is the *window of
+discoverability*: recovery is accurate at intermediate windows and fails for
+windows that are too short (under-determined) or too long (loss of
+identifiability), with noise tightening the upper edge.
 """
 
 import os
+import time
 
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+
 from matplotlib.transforms import blended_transform_factory
 
-from .config import RESULTS_DIR
-from .figstyle import DPI, LBL_BBOX
+from .. import figstyle
+from ..attractor import get_attractor_ic, build_segments
+from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..figstyle import DPI, LBL_BBOX
+from ..models import TwinModels, obs_mask
+from ..discovery import recover, lyapunov_time
 
 
+def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
+    """Run the lead-time sweep. With ``whiten=True`` every fit (noiseless and noisy)
+    divides each observed channel's residual by that channel's climatological std, so the
+    reported conditioning is that of the properly-weighted Jacobian J_w = W J and the
+    noisy recovery is the weighted least-squares estimate (reviewer #6/#7). The recovered
+    coefficients are unchanged in the noiseless limit (the twin truth is a zero-residual
+    minimizer under any positive weighting); only the geometry the SVD sees changes."""
+    if cfg is None:
+        cfg = ExperimentConfig()
+    t0 = time.time()
+
+    tw = TwinModels(cfg.eps, cfg.g_coeffs)
+    vr = tw.spec.variables_range
+    mask = obs_mask(tw.ndim, vr, cfg.obs)
+    if verbose:
+        print(f"[setup] ndim={tw.ndim} eps={cfg.eps} g_coeffs={cfg.g_coeffs} "
+              f"obs={cfg.obs} c_true={np.asarray(tw.c_true)}")
+
+    x_attr = get_attractor_ic(tw, cfg, verbose)
+    seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+
+    lam, tau, tau_days = lyapunov_time(tw, x_attr, cfg.dt, n_blocks=cfg.lyap_blocks)
+    if verbose:
+        print(f"[lyap]  lambda_max={lam:.4g}/nondim  tau_lyap={tau_days:.1f} days "
+              f"(weakly chaotic; context only)")
+
+    windows = cfg.window_steps
+    nW, nI = len(windows), cfg.n_ic
+
+    # --- noiseless sweep: recovery + conditioning -------------------------- #
+    rel = np.full((nW, nI), np.nan)
+    cond = np.full((nW, nI), np.nan)         # cond(J^T J) = cond(J)^2 (back-compat)
+    cond_J = np.full((nW, nI), np.nan)       # cond(J) from SVD (reviewer #3)
+    smin = np.full((nW, nI), np.nan)         # smallest singular value of J
+    smax = np.full((nW, nI), np.nan)         # largest singular value of J
+    jrank = np.full((nW, nI), np.nan)        # numerical rank of J
+    c_hats = np.full((nW, nI, 4), np.nan)
+    for iw, w in enumerate(windows):
+        for k in range(nI):
+            r = recover(tw, seg_ics[k], seg_trajs[k][:w], cfg.dt, mask,
+                        eta=0.0, n_iters=cfg.lm_iters, whiten=whiten)
+            rel[iw, k] = r["rel_err"]
+            cond[iw, k] = r["cond"]
+            cond_J[iw, k] = r["cond_J"]
+            smin[iw, k] = r["smin"]
+            smax[iw, k] = r["smax"]
+            jrank[iw, k] = r["rank"]
+            c_hats[iw, k] = r["c_hat"]
+        if verbose:
+            print(f"[clean] w={w:5d} ({steps_to_days(w):6.2f} d)  "
+                  f"rel_err med={np.nanmedian(rel[iw]):.3e}  "
+                  f"cond(J) med={np.nanmedian(cond_J[iw]):.2e}  "
+                  f"smin med={np.nanmedian(smin[iw]):.2e}  "
+                  f"rank med={np.nanmedian(jrank[iw]):.0f}")
+
+    # --- noise sweep: recovery vs window for several noise levels ---------- #
+    etas = cfg.noise_levels
+    nWn = len(cfg.noise_windows)
+    rel_noise = np.full((len(etas), nWn, nI, cfg.n_noise_seeds), np.nan)
+    for ie, eta in enumerate(etas):
+        for jw, w in enumerate(cfg.noise_windows):
+            for k in range(nI):
+                for s in range(cfg.n_noise_seeds):
+                    # unique, reproducible noise stream per (eta, window, segment, seed)
+                    ns = cfg.seed + (((ie * nWn + jw) * nI + k) * cfg.n_noise_seeds + s)
+                    r = recover(tw, seg_ics[k], seg_trajs[k][:w], cfg.dt, mask,
+                                eta=eta, n_iters=cfg.lm_iters, noise_seed=ns,
+                                whiten=whiten)
+                    rel_noise[ie, jw, k, s] = r["rel_err"]
+        if verbose:
+            print(f"[noise] eta={eta:.0e}  rel_err med over windows="
+                  f"{np.nanmedian(rel_noise[ie], axis=(1, 2))}")
+
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    out = os.path.join(RESULTS_DIR, f"leadtime_{cfg.tag}.npz")
+    np.savez(
+        out,
+        windows=np.asarray(windows),
+        window_days=np.asarray([steps_to_days(w) for w in windows]),
+        rel_err=rel, cond=cond, cond_J=cond_J, smin=smin, smax=smax, jrank=jrank,
+        c_hats=c_hats, c_true=np.asarray(tw.c_true),
+        noise_levels=np.asarray(etas),
+        noise_windows=np.asarray(cfg.noise_windows),
+        noise_window_days=np.asarray([steps_to_days(w) for w in cfg.noise_windows]),
+        rel_err_noise=rel_noise,
+        lam_max=lam, tau_lyap_days=tau_days,
+        eps=cfg.eps, g_coeffs=np.asarray(cfg.g_coeffs), obs=cfg.obs,
+        dt=cfg.dt, seed=cfg.seed,
+    )
+    if verbose:
+        print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s total)")
+    return out
+
+# --------------------------------------------------------------------------- #
+# Figures. Each reloads the .npz above; none of them computes.
+# --------------------------------------------------------------------------- #
 def _load(tag):
     return np.load(os.path.join(RESULTS_DIR, f"leadtime_{tag}.npz"), allow_pickle=True)
 
@@ -32,6 +148,7 @@ def fig_recovery_and_conditioning(tag="main"):
     windows sigma_min is tiny (drivers barely varied), at long windows sigma_max grows
     faster than sigma_min under chaotic stretching. J stays full rank 4/4 at every window,
     so the long-window deterioration is anisotropy, not a rank loss."""
+    plt = figstyle.pyplot()
     d = _load(tag)
     wd = d["window_days"]
     rel = d["rel_err"]                       # (nW, nI) noiseless
@@ -103,6 +220,7 @@ def fig_conditioning_only(tag="main_whiten"):
     Panel (a) is the noiseless recovery error together with cond(J)=sigma_max/sigma_min
     on a twin axis; panel (b) is the same sigma_min/sigma_max decomposition as
     fig_recovery_and_conditioning's panel (b)."""
+    plt = figstyle.pyplot()
     d = _load(tag)
     wd = d["window_days"]
     rel = d["rel_err"]                       # (nW, nI) noiseless
@@ -158,6 +276,7 @@ def fig_conditioning_only(tag="main_whiten"):
 
 def fig_coeff_recovery(tag="main"):
     """Per-coefficient recovery vs window (noiseless), against truth."""
+    plt = figstyle.pyplot()
     d = _load(tag)
     wd = d["window_days"]; c_hats = d["c_hats"]; c_true = d["c_true"]
     names = [r"$c_0$ (const)", r"$c_1\,\theta_{a,1}$", r"$c_2\,T_{o,1}$", r"$c_3\,\psi_{a,1}$"]
@@ -180,6 +299,7 @@ def fig_coeff_recovery(tag="main"):
 
 def fig_noise(tag="main"):
     """Recovery error vs window for several observation-noise levels."""
+    plt = figstyle.pyplot()
     d = _load(tag)
     nwd = d["noise_window_days"]
     etas = d["noise_levels"]
@@ -231,95 +351,7 @@ def summarize(tag="main"):
     return d
 
 
-def make_all(tag="main"):
+def figure(tag="main"):
     figs = [fig_recovery_and_conditioning(tag), fig_coeff_recovery(tag), fig_noise(tag)]
     summarize(tag)
-    return figs
-
-
-# --------------------------------------------------------------------------- #
-# Partial-observation (sparsity) study
-# --------------------------------------------------------------------------- #
-def _load_sparsity(tag):
-    return np.load(os.path.join(RESULTS_DIR, f"sparsity_{tag}.npz"), allow_pickle=True)
-
-
-_OBS_LABEL = {"full": "full (36)", "atmos": "atmosphere (20)",
-              "ocean": "ocean (16)", "temp": "temperatures (18)"}
-
-
-def fig_sparsity_noise(tag="sparsity"):
-    """Recovery error vs observation noise, one curve per observation operator."""
-    d = _load_sparsity(tag)
-    obs = [o.decode() if isinstance(o, bytes) else str(o) for o in d["obs_kinds"]]
-    etas = d["noise_levels"]
-    rel = d["rel_noise"]                       # (nO, nEta, nIC, nSeed)
-    floor = float(d["oracle_floor"])
-    wdays = float(d["noise_window_days"])
-    # plot eta=0 as a small floor value so it shows on a log axis
-    xed = np.array([e if e > 0 else etas[etas > 0].min() / 3 for e in etas])
-
-    fig, ax = plt.subplots(figsize=(6.6, 4.4))
-    for io, o in enumerate(obs):
-        med = np.nanmedian(rel[io], axis=(1, 2))
-        lo, hi = np.nanpercentile(rel[io], [25, 75], axis=(1, 2))
-        line, = ax.plot(xed, med, "o-", lw=2, label=_OBS_LABEL.get(o, o))
-        ax.fill_between(xed, lo, hi, color=line.get_color(), alpha=0.15)
-    ax.axhline(0.1, ls=":", color="grey", lw=1)
-    # left edge is clear (all curves are well below 0.1 at the noiseless point); the
-    # right edge is where several curves cross 0.1, so the old right-anchored label sat on them
-    ax.text(xed[0], 0.105, "10% (usable)", color="grey", fontsize=8, ha="left",
-            va="bottom", bbox=LBL_BBOX)
-    ax.set_xscale("log"); ax.set_yscale("log")
-    ax.set_ylim(1.5e-3, 3.0)            # focus on the data; oracle floor is far below (annotated)
-    ax.set_xlabel(r"observation noise $\eta$ (relative; leftmost = noiseless)")
-    ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
-    ax.legend(frameon=False, fontsize=8, loc="upper left")
-    ax.text(0.985, 0.02, f"oracle (exact tendency) ≈ {floor:.0e} — off scale below",
-            transform=ax.transAxes, fontsize=7.5, style="italic", color="0.4", ha="right")
-    fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, f"fig_sparsity_noise_{tag}.png")
-    fig.savefig(out, dpi=DPI); plt.close(fig)
-    return out
-
-
-def fig_sparsity_window(tag="sparsity"):
-    """Recovery error vs window per observation operator at fixed noise."""
-    d = _load_sparsity(tag)
-    obs = [o.decode() if isinstance(o, bytes) else str(o) for o in d["obs_kinds"]]
-    wd = d["window_days"]; rel = d["rel_window"]; eta = float(d["eta_fix"])
-    fig, ax = plt.subplots(figsize=(6.6, 4.4))
-    for io, o in enumerate(obs):
-        med = np.nanmedian(rel[io], axis=(1, 2))
-        ax.plot(wd, med, "o-", label=_OBS_LABEL.get(o, o))
-    ax.axhline(0.1, ls=":", color="grey", lw=1)
-    ax.set_xscale("log"); ax.set_yscale("log")
-    ax.set_xlabel("optimisation window  [days]")
-    ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
-    ax.set_title(fr"Discovery vs window at fixed noise $\eta={eta:.0e}$")
-    ax.legend(frameon=False, fontsize=8)
-    fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, f"fig_sparsity_window_{tag}.png")
-    fig.savefig(out, dpi=DPI); plt.close(fig)
-    return out
-
-
-def summarize_sparsity(tag="sparsity"):
-    d = _load_sparsity(tag)
-    obs = [o.decode() if isinstance(o, bytes) else str(o) for o in d["obs_kinds"]]
-    etas = d["noise_levels"]
-    rel = d["rel_noise"]
-    print(f"== sparsity summary [{tag}] (window {float(d['noise_window_days']):.0f} d) ==")
-    print(f"oracle (exact-tendency) floor: {float(d['oracle_floor']):.2e}")
-    print("median rel_err by obs operator vs noise eta:")
-    print("  eta:        " + "  ".join(f"{e:7.0e}" for e in etas))
-    for io, o in enumerate(obs):
-        med = np.nanmedian(rel[io], axis=(1, 2))
-        print(f"  {o:10s} " + "  ".join(f"{m:7.3f}" for m in med))
-    return d
-
-
-def make_sparsity(tag="sparsity"):
-    figs = [fig_sparsity_noise(tag), fig_sparsity_window(tag)]
-    summarize_sparsity(tag)
     return figs

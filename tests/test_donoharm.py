@@ -17,8 +17,8 @@ Run:  pytest error_discovery/test_donoharm.py -v
 
 import numpy as np
 
-from error_discovery import experiment_donoharm as D
-from error_discovery.experiment_form import twin, attractor_traj, true_transient, EPS
+from error_discovery.experiments import donoharm as D
+from error_discovery.formfit import twin, attractor_traj, true_transient, EPS
 
 
 def _offattractor(tw, n_seg=3):

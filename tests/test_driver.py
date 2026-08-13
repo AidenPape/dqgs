@@ -11,7 +11,7 @@ Claims encoded:
 Small reps/sizes keep the suite fast; uses qgs_jax rollouts (single process)."""
 
 import numpy as np
-from error_discovery import experiment_driver as D
+from error_discovery.experiments import driver_scan, driver_record, driver_mixed, alias
 
 
 def _by_name(rows, key):
@@ -19,7 +19,7 @@ def _by_name(rows, key):
 
 
 def test_atmospheric_driver_identifiable_on_attractor():
-    rows = D.driver_scan(n=2000, reps=4, seed=0, save=False)
+    rows = driver_scan.run(n=2000, reps=4, seed=0, save=False)
     r_att = _by_name(rows, "r_att")
     marg = _by_name(rows, "margin_att")
     # the fast atmospheric streamfunction is near zero-centred and identifiable on-attractor
@@ -31,7 +31,7 @@ def test_atmospheric_driver_identifiable_on_attractor():
 
 
 def test_margin_tracks_one_over_meanstd_across_fluids():
-    rows = D.driver_scan(n=2000, reps=4, seed=0, save=False)
+    rows = driver_scan.run(n=2000, reps=4, seed=0, save=False)
     finite = [r for r in rows if np.isfinite(r["r_att"])]
     # margin decreases as the driver's |mean|/std increases (psi_a1 > theta_a1 > T_o1)
     order = sorted(finite, key=lambda r: r["r_att"])
@@ -46,7 +46,7 @@ def test_margin_tracks_one_over_meanstd_across_fluids():
 
 
 def test_atmosphere_opens_up_ocean_stays_pinned_with_record_length():
-    d = D.record_length_scan(Ns=(2000, 8000, 20000), save=False)
+    d = driver_record.run(Ns=(2000, 8000, 20000), save=False)
     m = d["margin"]                       # rows: psi_a1, theta_a1, T_o1
     psi, To = m[0], m[2]
     # atmospheric circulation: margin rises with record length and crosses threshold
@@ -61,7 +61,7 @@ def test_atmosphere_opens_up_ocean_stays_pinned_with_record_length():
 
 
 def test_full_error_circulation_recovered_temperature_conditioning():
-    d = D.full_error_decomposition(noises=(0.01, 0.1), n=4000, reps=6, seed=0,
+    d = driver_mixed.run(noises=(0.01, 0.1), n=4000, reps=6, seed=0,
                                    record=20000, save=False)
     chat = d["chat"]
     # the circulation coefficient is recovered near eps with small spread
@@ -75,7 +75,7 @@ def test_full_error_circulation_recovered_temperature_conditioning():
 
 
 def test_alias_collinear_on_attractor_breaks_under_excitation():
-    d = D.alias_data(n=2000, seed=0)
+    d = alias.alias_data(n=2000, seed=0)
     # a near-constant mode times a driver is collinear with the driver on the attractor
     assert d["att"]["m_meanstd"] > 10           # the multiplier is near-constant
     assert d["att"]["corr"] > 0.95              # alias indistinguishable from the driver

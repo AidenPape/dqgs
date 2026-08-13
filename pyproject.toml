@@ -30,4 +30,4 @@ test = ["pytest"]
 # Flat layout with several top-level modules (smoke_test.py, tune_demo.py,
 # test_*.py), so setuptools auto-discovery cannot infer the packages.
 [tool.setuptools]
-packages = ["error_discovery", "qgs_jax"]
+packages = ["error_discovery", "error_discovery.experiments", "qgs_jax"]

@@ -23,7 +23,7 @@ import numpy as np
 import jax.numpy as jnp
 import pytest
 
-from error_discovery import experiment_increment as E
+from error_discovery.experiments import increment as E
 from error_discovery.discovery import rollout
 
 
@@ -56,10 +56,10 @@ def test_da_forecasts_launch_from_true_with_biased_dynamics(tw, xa):
 
 # ---- 2. _margin_exc returns the form-margin + slow/fast excitation -------- #
 def test_margin_exc_matches_form_margin(tw, xa):
-    from error_discovery import experiment_form as F
+    from error_discovery.experiments import reanalysis as R
     X = np.asarray(rollout(lambda z: tw.f_base(z), xa, E.DT, 400))
     mg, slo, fas = E._margin_exc(tw, X)
-    mg_ref, slo_ref = F._margin_of(tw, X)
+    mg_ref, slo_ref = R._margin_of(tw, X)
     assert np.isclose(mg, mg_ref, rtol=1e-6, atol=1e-9)   # same validated margin
     assert np.isclose(slo, slo_ref, rtol=1e-6)            # slow = T_o1 std
     assert np.isclose(fas, float(X[:, 0].std()), rtol=1e-6)  # fast = psi_a1 std

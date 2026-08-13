@@ -1,6 +1,6 @@
 """
-error_discovery.experiment_climatology
-======================================
+error_discovery.experiments.climatology
+=======================================
 
 Climatology fidelity of the recovered correction.
 
@@ -32,11 +32,12 @@ import time
 import numpy as np
 import jax.numpy as jnp
 
-from .config import ExperimentConfig, RESULTS_DIR, steps_to_days
-from .models import TwinModels
-from .discovery import rollout, recover
-from .experiment import get_attractor_ic, build_segments
-from .figstyle import DPI
+from .. import figstyle
+from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..models import TwinModels
+from ..discovery import rollout, recover
+from ..attractor import get_attractor_ic, build_segments
+from ..figstyle import DPI
 
 
 def _quantile_stats(traj):
@@ -110,9 +111,7 @@ def run(n_clim=150_000, recover_window=1280, verbose=True):
 
 
 def figure():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    plt = figstyle.pyplot()
     d = np.load(os.path.join(RESULTS_DIR, "climatology_results.npz"))
     ndim = len(d["truth_mean"])
     x = np.arange(ndim)
