@@ -19,7 +19,8 @@ This script runs the reviewer's oracle battery:
     SVD least squares (lstsq), and pseudo-inverse with a relative cutoff;
   * report the recovered T_o1 coefficient and ||c-c_true|| for each.
 
-Read-only on the cached attractor IC; no result files are written.
+Read-only on the cached attractor IC; no result files are written — this study
+reports a table to stdout, which is why its ``STUDIES`` entry has ``figure=None``.
 """
 
 import numpy as np
@@ -29,8 +30,10 @@ from ..config import EPS
 from ..models import TwinModels
 from ..formfit import attractor_traj, err_tendency
 
-# active modes in the mixed error g = theta_a1 + T_o1 + psi_a1
-PSI_A1, THETA_A1, T_O1 = 0, 10, 28
+# The mixed error g = theta_a1 + T_o1 + psi_a1, in ``TwinModels.features`` order
+# (constant, theta_a1, T_o1, psi_a1). This is deliberately not the project default
+# g = T_o1: the low bias being diagnosed is a property of the *three-driver* fit.
+G_MIXED = (0.0, 1.0, 1.0, 1.0)
 
 
 def _weighted_design(tw, X, m):
@@ -51,23 +54,27 @@ def _weighted_design(tw, X, m):
     return A, t, w, phi
 
 
-def _c_true_vec(P):
+def _c_true_vec(tw, P):
+    """``tw.c_true``, which is indexed by ``features(x)``, re-expressed over
+    ``phi(x) = [1, x_0, ..., x_35]`` — the library this study regresses on."""
     c = np.zeros(P)
-    c[1 + PSI_A1] = EPS
-    c[1 + THETA_A1] = EPS
-    c[1 + T_O1] = EPS
+    c[0] = tw.c_true[0]
+    c[1 + tw.idx_thetaa1] = tw.c_true[1]
+    c[1 + tw.idx_To1] = tw.c_true[2]
+    c[1 + tw.idx_psia1] = tw.c_true[3]
     return c
 
 
-def run(record=40000):
+def run(record=40000, eps=EPS, g_coeffs=G_MIXED):
     print(f"x64 enabled: {jax.config.read('jax_enable_x64')}")
-    tw = TwinModels(eps=EPS, g_coeffs=(0.0, 1.0, 1.0, 1.0))     # const, theta_a1, T_o1, psi_a1
+    tw = TwinModels(eps=eps, g_coeffs=g_coeffs)
     X = attractor_traj(tw, record)
     m = err_tendency(tw, X)
     A, t, w, phi = _weighted_design(tw, X, m)
     P = A.shape[1]
-    c_true = _c_true_vec(P)
-    iTo = 1 + T_O1
+    c_true = _c_true_vec(tw, P)
+    iTo = 1 + tw.idx_To1
+    To_true = float(tw.c_true[2])
 
     # --- exactness of the linear model: is m in the column space at c_true? ---
     res_true = np.linalg.norm(A @ c_true - t) / (np.linalg.norm(t) + 1e-300)
@@ -99,8 +106,8 @@ def run(record=40000):
 
     def report(name, c):
         rel = np.linalg.norm(c - c_true) / np.linalg.norm(c_true)
-        print(f"  {name:32s}  T_o1={c[iTo]:.5f} (truth {EPS})  "
-              f"frac low={1 - c[iTo]/EPS:+.1%}  ||c-c_true||/||c_true||={rel:.2e}")
+        print(f"  {name:32s}  T_o1={c[iTo]:.5f} (truth {To_true})  "
+              f"frac low={1 - c[iTo]/To_true:+.1%}  ||c-c_true||/||c_true||={rel:.2e}")
 
     print("\nsolver comparison (noiseless):")
     c_ridge = np.linalg.solve(G + 1e-12 * np.eye(P), b)         # CURRENT method

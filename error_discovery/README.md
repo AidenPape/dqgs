@@ -72,7 +72,8 @@ The package is in two halves: **machinery** at the top level, **studies** in
 | `driver_mixed.py` | all three drivers at once: joint coefficient recovery vs noise |
 | `alias.py`        | the alias mechanism, in three panels |
 | `roadmap.py`      | schematic of how the injected error is used (no computation) |
-| `oracle.py`, `jax_validation.py` | produce paper figures but are **not** in `run_all` — see its docstring for why |
+| `jax_validation.py` | does the JAX rewrite reproduce the original qgs model? (to 1e-14) |
+| `oracle.py`       | why the noiseless mixed-driver ocean coefficient comes out low — prints a table, writes no figure |
 
 ## Reproduce
 
@@ -85,6 +86,19 @@ python -m error_discovery.run_all --form       # form discovery from trajectorie
 
 One study runs per invocation. The flags are generated from `run_all.STUDIES`, so `--help` is
 the authoritative list rather than anything written down here.
+
+A study's parameters are its own keyword arguments, and `--set` reaches them:
+
+```bash
+python -m error_discovery.run_all --driver-scan --list-params
+python -m error_discovery.run_all --driver-scan --set n=8000 --set reps=40
+python -m error_discovery.run_all --set whiten=true --set tag=main_whiten   # Fig. 2
+```
+
+`--list-params` reads the signatures of the functions the study actually calls, so it cannot
+drift from them. For the default lead-time study the parameters are the fields of
+`ExperimentConfig`; `--quick` swaps in the smoke-test preset and `--set` overrides fields on
+top of it. Give a whitened run its own `tag` — `whiten` does not change the output filename.
 
 Each study module exposes `run()`, which computes and writes a `.npz`, and `figure()`, which
 reloads that `.npz` and draws. Because they are separate, a figure can be redrawn without
