@@ -133,6 +133,10 @@ STUDIES = {
         "roadmap", steps=(),
         help="schematic of how the injected error is used (no computation)"),
     # --- validation and numerical diagnostics -------------------------------- #
+    "param-tuning": Study(
+        "param_tuning",
+        help="warm-up: Adam through the integrator recovers mis-set physical "
+             "parameters (kd, kdp, Lpa) -- the easy problem the rest of this is not"),
     "jax-validation": Study(
         "jax_validation",
         help="the JAX rewrite reproduces the original qgs model (imports the original "

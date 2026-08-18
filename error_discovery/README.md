@@ -72,6 +72,7 @@ The package is in two halves: **machinery** at the top level, **studies** in
 | `driver_mixed.py` | all three drivers at once: joint coefficient recovery vs noise |
 | `alias.py`        | the alias mechanism, in three panels |
 | `roadmap.py`      | schematic of how the injected error is used (no computation) |
+| `param_tuning.py`   | the warm-up: can Adam recover mis-set *physical* parameters? (yes, to ~1e-8) |
 | `jax_validation.py` | does the JAX rewrite reproduce the original qgs model? (to 1e-14) |
 | `oracle.py`       | why the noiseless mixed-driver ocean coefficient comes out low — prints a table, writes no figure |
 
