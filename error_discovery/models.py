@@ -19,7 +19,9 @@ The twin-experiment models, in JAX.
       f_model(x; c) = f_base(x) + (c . phi(x)) * (E @ x),
       phi(x) = (1, theta_{a,1}, T_{o,1}, psi_{a,1}),
 
-  so the truth is recovered exactly at c_true = eps * (a0, a1, a2, a3).  The
+  so the truth is recovered exactly at c_true = eps * (a0, a1, a2, a3).  Which three
+  state components fill the non-constant slots of phi is a constructor argument
+  (``feature_idx``); the default is the three mode-1 predictors above.  The
   whole point of the study is whether gradient descent through the integrator
   can *find* c_true, and how that ability decays with the optimisation window.
 
@@ -45,7 +47,7 @@ from .perturbed_tendencies import (                                    # noqa: E
 class TwinModels:
     """Container for the base / truth / discovery tendency functions."""
 
-    def __init__(self, eps, g_coeffs, params=None):
+    def __init__(self, eps, g_coeffs, params=None, feature_idx=None):
         self.eps = float(eps)
         self.g_coeffs = tuple(float(a) for a in g_coeffs)
 
@@ -58,6 +60,16 @@ class TwinModels:
         self.idx_psia1 = 0
         self.idx_thetaa1 = int(vr[0])
         self.idx_To1 = int(vr[2])
+
+        # Which state components fill slots 1-3 of phi(x); slot 0 is the constant.
+        # Defaults to the three mode-1 predictors, so leaving this alone reproduces the
+        # library every other study uses. Overriding it lets a twin be built over a
+        # different (e.g. high-variability) mode *without* changing the dimension of c,
+        # which is what keeps ``discovery.lm_fit``'s zeros(4) and every c_hats[..., 4]
+        # shape untouched. Note that ``f_pert_np`` below is the numpy truth built for the
+        # mode-1 library, so the JAX-vs-numpy cross-check in tests covers the default only.
+        self.feature_idx = ((self.idx_thetaa1, self.idx_To1, self.idx_psia1)
+                            if feature_idx is None else tuple(int(i) for i in feature_idx))
 
         # Exchange operator from the validated numpy implementation (run once).
         _f_pert_np, _Df, E_atm, E_oc = create_exchange_perturbed_tendencies(
@@ -75,8 +87,13 @@ class TwinModels:
 
     # -- predictors / features --------------------------------------------- #
     def features(self, x):
-        """phi(x) = (1, theta_{a,1}, T_{o,1}, psi_{a,1})  (order matches g_coeffs)."""
-        return jnp.array([1.0, x[self.idx_thetaa1], x[self.idx_To1], x[self.idx_psia1]])
+        """phi(x) = (1, x[i1], x[i2], x[i3])  (order matches g_coeffs).
+
+        By default the three predictors are theta_{a,1}, T_{o,1}, psi_{a,1}; see
+        ``feature_idx``.
+        """
+        i1, i2, i3 = self.feature_idx
+        return jnp.array([1.0, x[i1], x[i2], x[i3]])
 
     # -- tendencies -------------------------------------------------------- #
     def f_base(self, x):

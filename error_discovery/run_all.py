@@ -126,6 +126,14 @@ STUDIES = {
     "driver-mixed": Study(
         "driver_mixed",
         help="all three drivers active at once: joint coefficient recovery vs noise"),
+    "driver-window": Study(
+        "driver_window",
+        help="does the window of discoverability depend on which driver the error "
+             "rides on? cond(J) vs window for four single drivers and the mixed error"),
+    "driver-mode": Study(
+        "driver_mode",
+        help="does the window depend on how much the driver *varies*? cond(J) vs window "
+             "across the ten theta_a modes (CV 5% to 3013%)"),
     "alias": Study(
         "alias",
         help="the alias mechanism in three panels (near-constant mode times a driver)"),

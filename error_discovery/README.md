@@ -70,6 +70,8 @@ The package is in two halves: **machinery** at the top level, **studies** in
 | `driver_scan.py`  | which driver is discoverable on the attractor? |
 | `driver_record.py`| does a longer record help? (atmosphere yes, ocean temperature never) |
 | `driver_mixed.py` | all three drivers at once: joint coefficient recovery vs noise |
+| `driver_window.py`| does the window of discoverability depend on which driver? |
+| `driver_mode.py`  | does it depend on how much the driver *varies*? (ten `theta_a` modes) |
 | `alias.py`        | the alias mechanism, in three panels |
 | `roadmap.py`      | schematic of how the injected error is used (no computation) |
 | `param_tuning.py`   | the warm-up: can Adam recover mis-set *physical* parameters? (yes, to ~1e-8) |
