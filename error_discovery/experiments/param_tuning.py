@@ -14,8 +14,7 @@ problem.
 Which is why this study sits with the diagnostics rather than in the argument. Every
 other study here is about the case this one excludes -- an error whose *functional
 form* is unknown, and which no amount of tuning ``kd`` can absorb. This is the contrast
-that makes the rest of the package worth doing, and it is Lecture 1's figure
-(``writing/lectures/L1_parameter_tuning.md``).
+that makes the rest of the package worth doing, and it is Lecture 1's figure.
 
 It is also the one study that optimises over ``qgs_jax.assemble``'s *physical*
 parameters rather than over injected-error coefficients, so it uses neither

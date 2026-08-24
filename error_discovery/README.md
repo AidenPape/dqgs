@@ -20,11 +20,10 @@ is the maximum `|mean|/std` over all state modes.
 
 ## Where to read next
 
-- **`STORY.md`** — the one-page spine: the claim, the per-finding disposition, and
-  the conviction assessment. Start here.
-- **`NOTES.md`** — the full technical reference: every method, number, parameter
-  choice, gotcha, and dead-end. For running and extending the toolbox.
-- **`../manuscript/main.tex`** — the paper.
+- **`notebooks/getting_started.ipynb`** — a guided tour: what the model is, what error
+  is injected into it, and how to drive the package.
+- **The Layout table below** — the index of what exists.
+- **Each study's module docstring** — the question it asks, the result, and the caveats.
 
 ## Install
 

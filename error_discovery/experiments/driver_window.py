@@ -66,7 +66,7 @@ And the truth segments overlap at long windows. ``build_segments`` spaces initia
 by ``cfg.ic_spacing_steps = 3000`` while the sweep runs out to 8000 steps: overlap is 0%
 through 2560 steps, 22% at 3840, 41% at 5120 and 62.5% at 8000. The n_ic spread at the long
 end is therefore not an independent sample. Not fixed here -- the fix is a coordinated re-run
-across the four studies that call ``build_segments`` (see ``notes/TODO.md``).
+across the four studies that call ``build_segments``.
 
 Results -> ``results/driver_window_<tag>.npz``.
 """

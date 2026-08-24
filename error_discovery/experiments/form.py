@@ -3,7 +3,7 @@ error_discovery.experiments.form
 ================================
 
 Discovering the model error when its *functional form* is unknown (experiments
-E1, E2, E3, E5; see NOTES.md). The discovery model no longer knows that
+E1, E2, E3, E5). The discovery model no longer knows that
 g = T_{o,1}; it is given an over-complete predictor library and must find which
 term(s) explain the error tendency m(x) = eps * g(x) * (E x).
 
