@@ -82,6 +82,44 @@ def test_residual_jacobian_finite(tw, attractor):
     assert np.all(np.isfinite(J))
 
 
+# ---- 4b. per-coefficient uncertainty from the Jacobian -------------------- #
+def test_coefficient_uncertainty_identities():
+    """Orthogonal columns cost nothing; collinear ones inflate the variance."""
+    rng = np.random.default_rng(0)
+    Q, _ = np.linalg.qr(rng.standard_normal((50, 4)))       # exactly orthonormal columns
+    J = Q * np.array([1.0, 2.0, 4.0, 8.0])                  # known column norms
+    u = D.coefficient_uncertainty(J)
+    assert np.allclose(u["col_norm"], [1.0, 2.0, 4.0, 8.0])
+    # orthogonal columns: the full fit costs nothing, so s.e. is exactly 1/||J_k||
+    assert np.allclose(u["vif"], 1.0)
+    assert np.allclose(u["se_unit"], 1.0 / u["col_norm"])
+
+    # make column 3 nearly a copy of column 2: its own signal now buys much less
+    Jc = J.copy()
+    Jc[:, 3] = Jc[:, 2] + 1e-3 * Jc[:, 3]
+    uc = D.coefficient_uncertainty(Jc)
+    assert uc["vif"][2] > 1e3 and uc["vif"][3] > 1e3
+    assert uc["vif"][0] == pytest.approx(1.0, abs=1e-9)
+    # the aliased pair is what the worst-determined direction is made of
+    assert uc["align"][2] > 0.5 and uc["align"][3] > 0.5
+    # and the identity that makes VIF a price: fitting the rest never helps
+    assert np.all(uc["se_unit"] >= 1.0 / uc["col_norm"] - 1e-12)
+
+
+def test_residual_jacobian_matches_jacfwd_at_c_true(tw, attractor):
+    """The no-fit path is the same Jacobian the fit would form, evaluated at c_true."""
+    import jax
+    Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 320))
+    mask = obs_mask(tw.ndim, tw.spec.variables_range, "full")
+    J = D.residual_jacobian(tw, attractor, Y, 0.1, mask)
+    resid = D.make_residual(tw, attractor, Y, 0.1, D.obs_indices(mask))
+    J_ref = np.asarray(jax.jacfwd(resid)(tw.c_true))
+    assert J.shape == (320 * tw.ndim, 4)
+    assert np.array_equal(J, J_ref)
+    # at c_true the noiseless residual is exactly zero, which is what licenses the shortcut
+    assert float(np.max(np.abs(np.asarray(resid(tw.c_true))))) == 0.0
+
+
 # ---- 5. LM does not increase the cost ------------------------------------- #
 def test_lm_monotone(tw, attractor):
     Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 1280))

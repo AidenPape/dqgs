@@ -15,12 +15,19 @@ four-vector c whatever ``g_coeffs`` says: every driver is the same 4-D inverse p
 and what differs is the truth trajectory J is evaluated along.
 
 The answer: **the conditioning U is a property of the base dynamics, not of the driver.**
-Measured 2026-08-20 on the whitened residual, all five drivers bottom out at the same 21.5-day
-window, cond(J_w) = 4.02e3 to 4.15e3 -- a spread of 1.034x. The U closes on both sides: the
-right arm reaches 3.05x the minimum by 89.7 d, the left arm 3.1e3 to 7.2e3 times it by 0.45 d.
-Only that left arm separates the drivers, and only by 2.26x, in the order you would expect --
-the constant driver, which adds no state dependence at all, is the worst conditioned.
-(The earlier unwhitened run put the same collapse at a 10.8-day minimum with cond(J) = 5.8e3.)
+Measured 2026-08-27 on the whitened residual and disjoint segments, all five drivers bottom out
+at the same 57.4-day window, cond(J_w) = 1.492e4 to 1.531e4 -- a spread of 1.027x. The U closes
+on both sides: the right arm reaches 1.89x to 1.98x the minimum by 89.7 d, the left arm 353x to
+696x by 0.45 d. Only that left arm separates the drivers, and only by 1.99x. The ordering there
+is *nearly* the one you would expect -- among the four single drivers the constant one, which
+adds no state dependence at all, is still the worst conditioned (9.92e6 against T_o1's 5.26e6)
+-- but mixed edges past it at 1.05e7, so "the constant driver is worst" no longer holds
+outright.
+
+(Before the 2026-08-27 segment fix, with initial conditions 3000 steps apart and overlapping by
+62.5% at the longest window, the same collapse sat at 21.5 d with cond(J_w) = 4.02e3 to 4.15e3.
+The driver-independence survived the fix; the window and the level did not. The unwhitened
+variant has not been re-run, so its 10.8-day, 5.8e3 minimum is a pre-fix number.)
 
 That collapse is not a coincidence of the truth. J's columns are the *library*, not the
 answer: ``features`` does not depend on ``g_coeffs``, ``E_full`` is bit-identical across
@@ -42,13 +49,17 @@ not reproduce. Pass ``--set whiten=false`` to recover them.
 Whitening also changes the noise result, and this is where it earns its keep. Unwhitened, at
 eta=1e-4 only the mixed error and the two temperature drivers ever got below 10% relative
 error; the constant and psi_a1 errors plateaued around 12%. Whitened, all five are below 10%
-by 7.2 d and below 1% by 57.4 d. That is the 1.9%-of-the-cost problem being fixed: with the
-temperature channels no longer buried, the noisy fit sees the signal.
+by 14.4 d and below 1% by 57.4 d. (Pre-fix that first threshold was met by 7.2 d; theta_a1 now
+sits at 17% there, and only from 14.4 d out is every driver under 10%.) That is the
+1.9%-of-the-cost problem being fixed: with the temperature channels no longer buried, the noisy
+fit sees the signal.
 
 Noiselessly the fit is exact (rel_err <= 3.5e-9, typically ~1e-10) from 1.79 d out to 89.7 d.
-It fails only at the two shortest windows, 0.45 and 0.90 d, where cond(J_w) is 1e6 to 1e8 --
-genuine under-determination, not an LM budget that ran short, since the same 40 iterations
-reach machine precision everywhere to the right of it.
+It now fails at only *one* window, 0.45 d, where rel_err reaches 1.7 and cond(J_w) is 5.3e6 to
+1.1e7 -- genuine under-determination, not an LM budget that ran short, since the same 40
+iterations reach machine precision everywhere to the right of it. The 0.90 d window, which used
+to fail alongside it, recovers to 1.1e-4 on disjoint segments: still the worst window bar one,
+but no longer a failure.
 
 Two things to hold in mind when reading the figure.
 
@@ -56,17 +67,20 @@ The mixed driver's ``rel_err`` is a joint norm over three nonzero coefficients, 
 on the same footing as a single-driver one: it divides by ||c_true|| = 0.1*sqrt(3) against
 0.1 for the singles, a free 1.73x advantage on the relative scale. An earlier version of this
 docstring read "mixed is the easiest of the five to recover" off exactly that artefact.
-Retracted 2026-08-20: converted back to absolute error at the 28.7 d window, the six samples
-*within* each driver span 18x while the medians differ by 3x, so the ordering is inside the
-sampling noise -- as the shared-J argument above says it should be. ``experiments/oracle.py``
-separately attributes a ~20% low bias in the noiseless mixed ocean coefficient to
-conditioning rather than to anything physical.
+Retracted 2026-08-20, and it survives the re-run: converted back to absolute error at the
+28.7 d window, the samples *within* each driver span 5.6x to 28.7x while the medians differ by
+only 2.13x across drivers, so the ordering is inside the sampling noise -- as the shared-J
+argument above says it should be. ``experiments/oracle.py`` separately attributes a ~20% low
+bias in the noiseless mixed ocean coefficient to conditioning rather than to anything physical.
 
-And the truth segments overlap at long windows. ``build_segments`` spaces initial conditions
-by ``cfg.ic_spacing_steps = 3000`` while the sweep runs out to 8000 steps: overlap is 0%
-through 2560 steps, 22% at 3840, 41% at 5120 and 62.5% at 8000. The n_ic spread at the long
-end is therefore not an independent sample. Not fixed here -- the fix is a coordinated re-run
-across the four studies that call ``build_segments``.
+The truth segments used to overlap at long windows: ``build_segments`` spaced initial
+conditions by a fixed 3000 steps while the sweep ran to 8000, sharing 22% at 3840 steps, 41% at
+5120 and 62.5% at 8000, so the n_ic spread at the long end was not an independent sample.
+**Fixed 2026-08-27** -- the spacing is now derived as twice the longest window, leaving segments
+disjoint at every window with one full window discarded between them, and every number above is
+from the re-run that followed. They are still not independent: consecutive segments sit 89.7 d
+apart on one trajectory and the ocean state stays correlated across them, so the spread remains
+a lower bound on sampling variability.
 
 Results -> ``results/driver_window_<tag>.npz``.
 """

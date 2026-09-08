@@ -11,7 +11,8 @@ coefficients of variation over a 21.5 d window are 0% (const), 5.2% (theta_a1), 
 and 1.6% (psi_a1). Near-identical functions condition alike; nothing else was on offer.
 
 This study supplies the variation. It sweeps the driver across the ten theta_a modes, whose CV
-spans 5.2% (mode 1) to 3013% (mode 9) -- a ~580x range against the 0-5% that produced the null.
+spans 5.07% (mode 1) to 8592% (mode 8) -- a ~1700x range against the 0-5% that produced the
+null. (The three non-theta CVs quoted above are pre-fix; only mode 1 has been re-measured.)
 The library keeps its four slots and its dimension; only which state component fills slot 1
 changes, via ``TwinModels(..., feature_idx=...)``:
 
@@ -28,31 +29,48 @@ column is not the same basis as a near-constant one. That is the point. The null
 so it could not depend on where c_true sat. Here the basis itself moves, so the question is
 live.
 
-**The answer, measured 2026-08-20: yes, and the null was an artefact of near-constant
-drivers.** The best-conditioned window moves from 21.5 d at mode 1 to 14.4 d at modes 2-4 and
-10.8 d at mode 5 -- a 2x leftward shift that ``driver_window`` had no varying driver to see.
+**The answer, re-measured 2026-08-27 on disjoint segments: yes, and the effect is larger than
+the overlapping-segment run showed.** The best-conditioned window splits the modes cleanly by
+variability: the two low-CV modes sit at 57.4 d (mode 1, CV 5%; mode 4, CV 53%) while every mode
+above CV 326% sits at 1.8-5.4 d. That is a **10-32x leftward shift across a CV threshold between
+53% and 326%**, against the 2x shift the pre-fix run reported. The shift is a threshold, not a
+gradient: it is not monotonic in CV above the threshold (mode 8 at CV 8592% optimises at 5.4 d,
+mode 10 at CV 713% at 1.8 d).
 
 The clean comparison is free, because the mode structure supplies four matched-amplitude
 groups. Within a group the rms of the driver is identical to three digits, so the amplitude
 confound below is held fixed and only the variability differs:
 
-    rms 4.7e-3  modes 4 / 2 / 3   CV   53% / 1287% / 5059%   cond 3.50e3 / 2.67e3 / 2.69e3
-    rms 3.3e-3  modes 5 / 6       CV  326% / 1162%           cond 3.06e3 / 3.03e3
-    rms 6.6e-4  modes 7 / 8       CV 6200% / 8592%           cond 1.13e4 / 1.06e4
-    rms 2.3e-4  modes 10 / 9      CV  713% / 6864%           cond 2.79e4 / 2.66e4
+    rms 4.7e-3  modes 4 / 2 / 3   CV   53% / 1287% / 5059%   cond 1.50e4 / 6.43e3 / 6.26e3
+    rms 3.4e-3  modes 5 / 6       CV  326% / 1162%           cond 6.44e3 / 6.27e3
+    rms 6.6e-4  modes 7 / 8       CV 6200% / 8592%           cond 1.60e4 / 1.99e4
+    rms 2.3e-4  modes 10 / 9      CV  713% / 6864%           cond 6.99e4 / 7.55e4
 
-All four groups favour the more variable mode, so the direction is consistent 4/4. But the
-size is not: 31% in the first group and 1-7% in the rest. **It reads as a threshold, not a
-gradient** -- crossing from CV ~50% to CV ~1300% buys 31%, and going on from 1287% to 5059%
-buys 0.6%. Once a driver genuinely varies, more variation buys almost nothing.
+**This is where the segment fix cost the study its cleanest argument.** On overlapping segments
+all four groups favoured the more variable mode, 4/4. On disjoint segments it is **2/4**: the
+two larger-amplitude groups still favour variability, decisively (2.3x in the first group, where
+the pre-fix run saw 31%), but both small-amplitude groups reverse -- mode 7 beats mode 8 and
+mode 10 beats mode 9, in each case the *less* variable mode winning. Those two groups needed no
+amplitude correction, which is exactly why they carried the argument, so the reversal cannot be
+explained away as the confound below.
+
+What survives is the threshold reading, now on firmer ground: crossing from CV ~50% to
+CV ~1300% buys 2.3x, and going on from 1287% to 5059% buys 2.7%. Once a driver genuinely
+varies, more variation buys nothing, and at small amplitude it may cost.
 
 Two further results worth keeping.
 
-Mode 1 has 5x the amplitude of modes 2-4 and still conditions worse (4.153e3 against 2.67e3),
-so variability beats amplitude where the two are opposed. And noiselessly, at the shortest
-0.45 d window, mode 1 fails at rel_err 2.2e-4 while modes 7-10 recover to 1e-9..1e-8 -- four to
-five orders better -- even though their cond(J) there is comparable (~1e7). Conditioning alone
-does not predict noiseless solvability at the under-determined end.
+Mode 1 has 5x the amplitude of modes 2 and 3 and still conditions worse (1.492e4 against 6.43e3
+and 6.26e3), so variability beats amplitude where the two are opposed. Mode 4 is the control
+that makes this readable: it shares modes 2-3's amplitude but has CV 53%, and it conditions with
+mode 1 at 1.499e4, not with modes 2-3. Amplitude is held fixed across that pair, so the split is
+variability.
+
+**The noiseless-solvability claim did not survive the fix and is withdrawn.** It read: at the
+shortest 0.45 d window mode 1 fails at rel_err 2.2e-4 while modes 7-10 recover four to five
+orders better. On disjoint segments mode 1 reaches 2.9e-7 there and modes 7-10 span 1.4e-8 to
+3.9e-6 -- a range that brackets mode 1 rather than beating it, with mode 8 the worst of all ten.
+There is no ordering left to report.
 
 Under observation noise the picture inverts at the small-amplitude end: modes 2-6 are the best
 recovered (below 1% by 28.7 d at eta=1e-4) because they have both variability *and* amplitude,
@@ -71,18 +89,32 @@ reported as a variability result. A finding that high modes are *better* conditi
 since it would hold despite the amplitude penalty. The per-mode ``rms`` is saved so the
 normalisation can be applied in analysis without re-running.
 
-That case duly arose: modes 7-10 condition at 1.1e4 to 2.8e4 against 2.7e3 to 4.2e3 for modes
-1-6, with rms 5-100x smaller. **That gap is not attributable and is not reported as one.**
-Dividing it out does not rescue it either -- ``cond * rms`` does fall monotonically (95.0 at
-mode 1 to 6.1 at mode 9), but the correction assumes sigma_min scales with the driver
-amplitude and sigma_max does not, and neither holds: across modes at their own optima sigma_max
-spans 3.9x and sigma_min/rms spans 7.2x. Use the matched-amplitude groups above, which need no
-correction, and treat ``cond * rms`` as suggestive only.
+That case duly arose: modes 7-10 condition at 1.60e4 to 7.55e4 against 6.26e3 to 1.50e4 for
+modes 1-6, with rms 5-100x smaller. **That gap is not attributable and is not reported as one.**
+Dividing it out does not rescue it either -- and after the segment fix it rescues it less than
+before, because ``cond * rms`` no longer even falls monotonically (341 at mode 1, down to 10.6
+at mode 7, then back up to 13.2, 17.3 and 16.2 at modes 8, 9 and 10). The correction also assumes
+sigma_min scales with the driver amplitude, and it does not: compared at a fixed window,
+sigma_min/rms spans 24.9x at 21.5 d and 10.0x at 89.7 d. (Its other assumption, that sigma_max
+is amplitude-independent, does hold -- see the next paragraph.) Use the matched-amplitude
+groups above, which need no correction, and treat ``cond * rms`` as suggestive only.
 
-One reading caveat: ``argmin`` over the window axis is only meaningful where the U has
-curvature. Modes 7 and 8 vary by under 20% across 3.6-14.4 d, so their reported optima (10.8 d
-and 3.6 d) differ by noise, not by physics. The ``within 10% of the minimum`` span is the
-honest statistic there; modes 1-6 are the ones with a genuine minimum.
+**Which half of the ratio moves, measured 2026-08-27 on disjoint segments.** Compared at a
+*fixed* window rather than at each mode's own optimum, sigma_max is identical across all ten
+modes -- to 1.0008-1.0016x on segment medians from 5.4 d out, 1.042x at the shortest window, and
+never worse than 1.0114x within a single segment -- while sigma_min spans 14.5x at 21.5 d and
+37.3x at 89.7 d. **The entire 11-26x spread in cond(J_w) across modes is sigma_min, and none of
+it is sigma_max.** That is structural: sigma_max tracks the norm of the library's *constant*
+column, measuring 1.18-1.23 x ||J_w[:, 0]|| at every window, and that column is unchanged when
+slot 1 swaps modes -- the mode column is ~52x smaller at 89.7 d, so the largest singular
+direction never notices which mode fills it. Any sigma_max spread quoted across modes is a
+window artefact: sigma_max grows from 142 at 0.45 d to 3739 at 89.7 d, so comparing modes at
+their own different optima mixes that growth in.
+
+The reading caveat the overlapping-segment run needed has lapsed. It warned that ``argmin``
+over the window axis was meaningless for modes 7 and 8, whose U varied by under 20% across
+3.6-14.4 d. On disjoint segments every mode has a sharp optimum: the ``within 10% of the
+minimum`` span is a single window for nine of the ten, and two windows for mode 8.
 
 Whitened by default, like every study since 2026-08-20; see ``discovery.recover``.
 
@@ -222,14 +254,21 @@ def _load(tag):
 
 
 def figure(tag="main", eta_index=0):
-    """The conditioning U-curve and the usable window, one curve per theta_a mode.
+    """Conditioning, the two singular values behind it, and the usable window, per theta_a mode.
 
-    Same two panels as ``driver_window``: (a) cond(J) against window, (b) recovery error
-    under observation noise. Both share one colour scale, shown beside (b).
+    (a) cond(J_w) against window, as ``driver_window`` plots it. (b) the two singular values
+    that ratio is built from, which says which half of it moves: the sigma_max curves collapse
+    onto a single line because sigma_max belongs to the library's constant column, so every mode
+    difference in (a) is sigma_min. (c) recovery error under observation noise. All three share
+    one colour scale, shown beside (c).
+
+    Panel (b) resolves three clusters, not ten curves -- modes 1-6, then 7-8, then 9-10. Within
+    the 1-6 cluster the modes overlap each other inside the segment-to-segment scatter (1.16-2.08x
+    at 21.5 d, against a 13.5x fan between clusters), so only the cluster separation is readable.
 
     Modes are coloured sequentially rather than categorically because the mode index is an
     ordered quantity -- but note the ordering that matters here is CV, and CV is *not*
-    monotonic in mode (mode 4 is 83%, mode 9 is 3013%). Read the curves against the CV
+    monotonic in mode (mode 4 is 53%, mode 8 is 8592%). Read the curves against the CV
     column that ``run`` prints, not against the colour ramp.
     """
     plt = figstyle.pyplot()
@@ -241,7 +280,7 @@ def figure(tag="main", eta_index=0):
     jsym = r"J_w" if wh else "J"
     wnote = "whitened residual (1/std per channel)" if wh else "unwhitened residual"
 
-    fig, (ax, axb) = plt.subplots(1, 2, figsize=(11.4, 4.4))
+    fig, (ax, axb, axc) = plt.subplots(1, 3, figsize=(16.4, 4.4))
     norm = plt.Normalize(vmin=min(modes), vmax=max(modes))
     cmap = plt.get_cmap("viridis")
     colors = [cmap(norm(m)) for m in modes]
@@ -254,24 +293,41 @@ def figure(tag="main", eta_index=0):
     ax.set_xlabel("optimisation window  [days]")
     ax.set_ylabel(rf"cond$({jsym})=\sigma_{{\max}}/\sigma_{{\min}}$")
     ax.set_title(r"(a)  conditioning vs window, by $\theta_a$ mode of the driver" "\n"
-                 rf"{wnote}; $\star$ = each mode's best-conditioned window",
+                 rf"{wnote}; $\star$ = best window",
                  fontsize=9.5, loc="left")
 
     for i, m in enumerate(modes):
-        y = np.nanmedian(d["rel_err_noise"][i, eta_index], axis=(1, 2))
-        axb.plot(nwd, y, "s-", ms=5, color=colors[i], label=f"{m}")
-    axb.axhline(0.1, ls=":", color="grey", lw=1)
-    axb.text(nwd[0], 0.105, "10%", color="grey", fontsize=8, va="bottom", ha="left",
-             bbox=LBL_BBOX)
+        # Median over segments, no bands: twenty curves already, and the structure that matters
+        # -- the three clusters -- is wider than the per-mode segment scatter anyway.
+        axb.plot(wd, np.nanmedian(d["smax"][i], axis=1), "o-", ms=4, color=colors[i])
+        axb.plot(wd, np.nanmedian(d["smin"][i], axis=1), ls="--", color=colors[i])
     axb.set_xscale("log"); axb.set_yscale("log")
     axb.set_xlabel("optimisation window  [days]")
-    axb.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
-    axb.set_title(rf"(b)  recovery under noise ($\eta={etas[eta_index]:.0e}$)"
+    axb.set_ylabel(rf"singular values of ${jsym}$")
+    axb.set_title(rf"(b)  cond$({jsym})$ decomposed: the gap between the bundles" "\n"
+                  r"$\sigma_{\max}$ is set by the constant column, not by the mode",
+                  fontsize=9.5, loc="left")
+    # style-only legend; the colorbar beside (c) already carries the mode scale
+    axb.legend(handles=[plt.Line2D([], [], color="grey", ls="-", marker="o", ms=4,
+                                   label=r"$\sigma_{\max}$"),
+                        plt.Line2D([], [], color="grey", ls="--", label=r"$\sigma_{\min}$")],
+               frameon=False, fontsize=8)
+
+    for i, m in enumerate(modes):
+        y = np.nanmedian(d["rel_err_noise"][i, eta_index], axis=(1, 2))
+        axc.plot(nwd, y, "s-", ms=5, color=colors[i], label=f"{m}")
+    axc.axhline(0.1, ls=":", color="grey", lw=1)
+    axc.text(nwd[0], 0.105, "10%", color="grey", fontsize=8, va="bottom", ha="left",
+             bbox=LBL_BBOX)
+    axc.set_xscale("log"); axc.set_yscale("log")
+    axc.set_xlabel("optimisation window  [days]")
+    axc.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
+    axc.set_title(rf"(c)  recovery under noise ($\eta={etas[eta_index]:.0e}$)"
                   "\nhigher modes carry less amplitude at fixed $\\epsilon$",
                   fontsize=9.5, loc="left")
 
     sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
-    cb = fig.colorbar(sm, ax=axb, pad=0.02)
+    cb = fig.colorbar(sm, ax=axc, pad=0.02)
     cb.set_label(r"driver mode $k$  ($\theta_{a,k}$)", fontsize=9)
     cb.set_ticks(modes)
 

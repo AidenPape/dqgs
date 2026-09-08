@@ -44,6 +44,19 @@ def obs_indices(mask):
     return np.where(np.asarray(mask) > 0)[0]
 
 
+def channel_weights(Y_true, oidx):
+    """Per-observed-channel whitening weights, 1/std, from the *clean* trajectory.
+
+    The assumed observation-error scale is ``eta * std(channel)`` (see ``add_obs_noise``),
+    so dividing each channel's residual by its climatological std makes the implied
+    observation-error covariance ``R = eta^2 I``: channels of different amplitude
+    contribute on equal terms, and the whitened noise std is ``eta`` in every channel.
+    """
+    s = np.asarray(Y_true)[:, oidx].std(axis=0)
+    s = np.where(s > 0, s, 1.0)
+    return 1.0 / s
+
+
 def make_residual(tw, x0, Y_obs, dt, oidx, wchan=None):
     """Return ``resid(c)`` = flattened observed (model - obs) trajectory. With
     ``wchan`` (per-observed-channel weights) the residual is whitened, r_w = W r, so
@@ -122,6 +135,58 @@ def jacobian_spectrum(J):
                 rank=rank, cond_JtJ=cond_J ** 2)
 
 
+def residual_jacobian(tw, x0, Y_true, dt, mask, c=None, whiten=False):
+    """The residual Jacobian ``d resid / dc`` evaluated at ``c`` (default ``tw.c_true``).
+
+    No optimisation is involved. Because the discovery model class contains the truth, the
+    noiseless residual is *exactly* zero at ``c_true``, so ``J^T J`` there is the exact
+    Gauss--Newton Hessian -- the conditioning and uncertainty diagnostics can be read off a
+    single Jacobian rather than off a converged fit. ``Y_true`` is the clean trajectory:
+    observation noise moves the minimiser, but not this Jacobian, which is a property of the
+    model and the truth trajectory alone.
+    """
+    oidx = obs_indices(mask)
+    wchan = channel_weights(Y_true, oidx) if whiten else None
+    resid = make_residual(tw, x0, Y_true, dt, oidx, wchan=wchan)
+    c = tw.c_true if c is None else c
+    return np.asarray(jax.jacfwd(resid)(jnp.asarray(c)))
+
+
+def coefficient_uncertainty(J):
+    """Per-coefficient uncertainty from the residual Jacobian, under linear theory.
+
+    ``cov(c_hat) = sigma_obs^2 (J^T J)^-1``, so coefficient i has standard error
+    ``sigma_obs * se_unit[i]``. Three quantities, because they answer different questions:
+
+    * ``col_norm[i] = ||J[:, i]||`` -- the information about ``c_i`` *if the other
+      coefficients were known*. The restricted standard error is ``sigma_obs / col_norm[i]``.
+    * ``se_unit[i] = sqrt([(J^T J)^-1]_ii)`` -- the standard error when all four coefficients
+      are fitted together, which is what every study here actually does.
+    * ``vif[i] = (col_norm[i] * se_unit[i])^2 >= 1`` -- the variance inflation between the
+      two: how much of coefficient i's own signal is spent separating it from the rest of the
+      library. 1 means its column is orthogonal to the others.
+
+    ``align[i] = |V[i, -1]|`` is the overlap of coefficient i with the worst-determined right
+    singular direction. Unlike ``cond(J)``, which is built from singular *values* and so
+    cannot know which coefficient is the true one, all four of these are per-coefficient.
+    """
+    J = np.asarray(J)
+    _, sv, Vt = np.linalg.svd(J, full_matrices=False)
+    smax, smin = float(sv[0]), float(sv[-1])
+    tol = max(J.shape) * np.finfo(J.dtype).eps * smax
+    col_norm = np.linalg.norm(J, axis=0)
+    # (J^T J)^-1 = V diag(1/sigma^2) V^T; only its diagonal is needed, and taking it this
+    # way never forms J^T J, whose conditioning is the square of J's.
+    with np.errstate(divide="ignore", over="ignore"):
+        inv_diag = ((Vt ** 2) / (sv[:, None] ** 2)).sum(axis=0)
+        se_unit = np.sqrt(inv_diag)
+    return dict(col_norm=col_norm, se_unit=se_unit,
+                vif=(col_norm * se_unit) ** 2, align=np.abs(Vt[-1]),
+                sigma=sv, smax=smax, smin=smin,
+                cond_J=smax / smin if smin > 0 else np.inf,
+                rank=int((sv > tol).sum()))
+
+
 def add_obs_noise(Y, oidx, eta, rng):
     """Add Gaussian noise of std ``eta * std(component)`` to the observed columns."""
     Y = np.array(Y, dtype=float)
@@ -142,21 +207,23 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
     oidx = obs_indices(mask)
     rng = np.random.default_rng(noise_seed)
     Y = add_obs_noise(Y_true, oidx, eta, rng)
-    wchan = None
-    if whiten:
-        s = np.asarray(Y_true)[:, oidx].std(axis=0)
-        s = np.where(s > 0, s, 1.0)
-        wchan = 1.0 / s
+    wchan = channel_weights(Y_true, oidx) if whiten else None
     resid = make_residual(tw, x0, Y, dt, oidx, wchan=wchan)
     c_hat, J_final, hist = lm_fit(resid, jnp.zeros(4), n_iters=n_iters)
     c_hat = np.asarray(c_hat)
     c_true = np.asarray(tw.c_true)
     rel_err = float(np.linalg.norm(c_hat - c_true) / (np.linalg.norm(c_true) + 1e-300))
     spec = jacobian_spectrum(J_final)
+    unc = coefficient_uncertainty(J_final)
     return dict(c_hat=c_hat, c_true=c_true, rel_err=rel_err,
                 cond=spec["cond_JtJ"],          # back-compat: cond(J^T J) = cond(J)^2
                 cond_J=spec["cond_J"], smin=spec["smin"], smax=spec["smax"],
                 rank=spec["rank"],
+                # per-coefficient, where cond() is a single number for the whole fit:
+                # se_unit * sigma_obs is coefficient i's standard error (sigma_obs = eta
+                # when whitened), and vif is what fitting the other three costs it.
+                col_norm=unc["col_norm"], se_unit=unc["se_unit"],
+                vif=unc["vif"], align=unc["align"],
                 cost0=float(hist[0]), cost_final=float(hist[-1]), eta=float(eta))
 
 

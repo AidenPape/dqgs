@@ -14,9 +14,16 @@ Two empirical facts motivate the design (verified in the probe):
   subset (full / atmosphere-only / ocean-only / temperatures-only). The
   fully-coupled dynamics spread the localized error's signature into every
   component, so observation locality is not a barrier in principle.
-* **Noisy**: the choice of observed variables dominates. Observing the
-  temperatures the error directly perturbs is best; observing *everything*
-  (adding noisy streamfunction channels) is worst.
+* **Noisy**: the choice of observed variables dominates -- but not in the
+  direction the probe suggested. **Corrected 2026-08-27 against this study's own
+  output:** ``ocean`` is the worst operator at every noise level, by 3-9x
+  (median rel_err 0.058 noiseless to 0.91 at eta=1e-3), and ``full`` is never
+  worst. The claim that adding noisy streamfunction channels is worst does not
+  hold here; it was already contradicted by the pre-fix run, so this is a
+  standing error being fixed, not a consequence of the segment change.
+  Observing the temperatures the error directly perturbs (``temp``) is best at
+  the three lowest noise levels and loses to ``atmos``/``full`` above eta=3e-4,
+  so "temperatures are best" holds only in the low-noise limit.
 
 So the sweep is noise-centric. For each observation operator we measure recovery
 versus (a) observation-noise level at a fixed window and (b) window length at a

@@ -9,7 +9,8 @@ cached to ``results/attractor_ic.npz`` and reused):
 
 1. Load (or build + cache) a spun-up base-model attractor state.
 2. Build one long truth trajectory with the perturbed model and slice ``n_ic``
-   independent segments out of it.
+   disjoint segments out of it, spaced two windows apart so none share a step.
+   Disjoint, not independent: the ocean state stays correlated across them.
 3. Estimate the base model's Lyapunov time (context; this config is only weakly
    chaotic).
 4. Noiseless sweep: for each window and segment, recover the error coefficients
@@ -17,9 +18,35 @@ cached to ``results/attractor_ic.npz`` and reused):
 5. Noise sweep: for a subset of windows, repeat with observation noise.
 
 Results -> ``results/leadtime_<tag>.npz``.  The headline is the *window of
-discoverability*: recovery is accurate at intermediate windows and fails for
-windows that are too short (under-determined) or too long (loss of
-identifiability), with noise tightening the upper edge.
+discoverability*. The 2026-08-27 disjoint-segment re-run left its lower half
+intact and substantially weakened its upper half.
+
+**Measured whitened, 16 windows out to 269 d.** The lower edge is real and
+sharp: 0.45 d is the only window where the noiseless fit misses, at rel_err
+9.5e-4 with cond(J_w) = 2.1e7, and every window from 0.90 d out sits at
+1e-10 to 5e-9.
+
+The upper edge is now visible only in the conditioning, and faintly. cond(J_w)
+bottoms at 7.3e4 (89.7 d) and climbs to just 1.2e5-1.4e5 by 269 d -- a factor of
+1.6-1.9. On the old overlapping segments the same curve bottomed at 4.9e3
+(21.5 d) and rose 7.7x to 3.7e4, so **both the depth of that U and the position
+of its floor were largely artefacts of segments that shared data.** The whole
+curve also sits 5-40x higher now.
+
+**Noiseless recovery never degrades at the long end** in either run: rel_err
+stays ~1e-10 out to 269 d. "Loss of identifiability" is a statement about
+cond(J_w), not about achieved accuracy.
+
+**And the noise sweep cannot test the upper edge at all.** Its windows stop at
+89.7 d, which is now precisely where cond(J_w) bottoms out, so all six sit on
+the lower arm. At eta=1e-4 recovery improves monotonically across them (0.186 at
+3.6 d to 0.0095 at 89.7 d) with no upper turn to see. Extending
+``EXTRA_NOISE_WINDOWS`` past 89.7 d is what would test the claim; until then the
+"noise tightens the upper edge" half of the headline is unsupported here.
+
+Removing the overlap also loosened the noisy fits at the long end by ~2x
+(89.7 d, eta=1e-4: 0.0056 before, 0.0095 after), which is the expected direction
+-- the old segments shared up to 62.5% of their data.
 """
 
 import os
@@ -37,6 +64,24 @@ from ..models import TwinModels, obs_mask
 from ..discovery import recover, lyapunov_time
 
 
+# This study sweeps further than the shared config does. The right arm of the U only resolves
+# past ~90 d, and the manuscript figures are drawn out to 269 d -- these are the windows the
+# pre-repo results behind those figures used. The other studies keep config's 13, deliberately:
+# ``build_segments`` derives its segment spacing from the longest window, so extending them
+# globally would triple every study's truth rollout for a range only this study reads.
+EXTRA_WINDOWS = (11_000, 16_000, 24_000)
+EXTRA_NOISE_WINDOWS = (8_000,)
+
+
+def default_config(tag="main"):
+    """``ExperimentConfig`` with this study's own longer sweep. ``run_all`` picks this up."""
+    cfg = ExperimentConfig()
+    cfg.tag = tag
+    cfg.window_steps = tuple(cfg.window_steps) + EXTRA_WINDOWS
+    cfg.noise_windows = tuple(cfg.noise_windows) + EXTRA_NOISE_WINDOWS
+    return cfg
+
+
 def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
     """Run the lead-time sweep. With ``whiten=True`` every fit (noiseless and noisy)
     divides each observed channel's residual by that channel's climatological std, so the
@@ -45,7 +90,7 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
     coefficients are unchanged in the noiseless limit (the twin truth is a zero-residual
     minimizer under any positive weighting); only the geometry the SVD sees changes."""
     if cfg is None:
-        cfg = ExperimentConfig()
+        cfg = default_config()
     t0 = time.time()
 
     tw = TwinModels(cfg.eps, cfg.g_coeffs)
@@ -143,11 +188,24 @@ def fig_recovery_and_conditioning(tag="main"):
     squared eigenvalue ratio of J^T J). The noiseless fit is exact at every window
     (the model class contains the truth), so there is no noiseless discoverability
     window; what is U-shaped is cond(J), and the real window appears only under
-    observation noise, which the conditioning amplifies. Panel (b) shows the source of
-    the U-shape -- the singular values sigma_min, sigma_max of J vs window: at short
-    windows sigma_min is tiny (drivers barely varied), at long windows sigma_max grows
-    faster than sigma_min under chaotic stretching. J stays full rank 4/4 at every window,
-    so the long-window deterioration is anisotropy, not a rank loss."""
+    observation noise, which the conditioning amplifies. Panel (b) shows the singular
+    values sigma_min, sigma_max of J vs window. At short windows sigma_min is tiny
+    (drivers barely varied), which is the whole lower arm. J stays full rank 4/4 at
+    every window, so nothing here is a rank loss.
+
+    **The long-window half of that reading is withdrawn, 2026-08-27.** It claimed
+    sigma_max grows faster than sigma_min under chaotic stretching. Measured on disjoint
+    segments, from the cond(J_w) minimum at 89.7 d out to 269 d, sigma_max grows 4.5x and
+    sigma_min grows 6.9x -- sigma_min grows *faster*, so the ratio of the two plotted
+    medians falls (6.7e4 to 4.4e4) over exactly the stretch where panel (a)'s cond curve
+    rises (7.3e4 to 1.4e5).
+
+    Those two statements are not contradictory, they are two different summaries: panel
+    (a) plots the median of the per-segment ratio, panel (b) plots the ratio of two
+    separately-taken medians, and with segments this dispersed they diverge. The
+    per-segment median is the one to trust. Panel (b) is still the right picture of where
+    each singular value goes; it is not a decomposition of panel (a)'s curve, and should
+    not be read as one."""
     plt = figstyle.pyplot()
     d = _load(tag)
     wd = d["window_days"]
@@ -206,7 +264,7 @@ def fig_recovery_and_conditioning(tag="main"):
         axb.set_xlabel("optimisation window  [days]")
         axb.set_ylabel("singular values of $J$")
         axb.set_title(rf"(b)  rank {int(np.nanmin(rank))}/4 throughout; "
-                      r"long-window loss $=\sigma_{\max}$ growth",
+                      r"rank 4/4 throughout; short-window loss $=\sigma_{\min}$",
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
     fig.tight_layout()
@@ -265,7 +323,7 @@ def fig_conditioning_only(tag="main_whiten"):
         axb.set_xlabel("optimisation window  [days]")
         axb.set_ylabel("singular values of $J$")
         axb.set_title(rf"(b)  rank {int(np.nanmin(rank))}/4 throughout; "
-                      r"long-window loss $=\sigma_{\max}$ growth",
+                      r"rank 4/4 throughout; short-window loss $=\sigma_{\min}$",
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
     fig.tight_layout()

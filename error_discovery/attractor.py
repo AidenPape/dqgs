@@ -59,13 +59,26 @@ def get_attractor_ic(tw, cfg, verbose=True):
 
 
 def build_segments(tw, cfg, x_attr):
-    """Return (segment_ics, truth_trajs) with each truth_traj of length max_window."""
+    """Return (segment_ics, truth_trajs) with each truth_traj of length max_window.
+
+    Segments are spaced by twice the longest window, so no two share a step at any window in
+    the sweep and one full window of trajectory is discarded between them. The spacing is
+    *derived* from ``max(window_steps)`` rather than configured: a fixed spacing silently
+    overlaps once the sweep grows past it, which is what had happened -- adjacent segments
+    shared 22% at 3840 steps, 41% at 5120 and 62.5% at 8000.
+
+    Disjoint is not independent. Consecutive segments are separated by one longest window on a
+    single trajectory, and MAOOAM's ocean modes evolve on timescales far longer than that, so
+    the ocean state stays correlated across them. Read the segment-to-segment spread as a lower
+    bound on sampling variability, not as an i.i.d. sample.
+    """
     max_w = max(cfg.window_steps)
-    total = (cfg.n_ic - 1) * cfg.ic_spacing_steps + max_w
+    spacing = 2 * max_w
+    total = (cfg.n_ic - 1) * spacing + max_w
     truth = np.asarray(rollout(lambda y: tw.f_true(y), x_attr, cfg.dt, total))
     ics, trajs = [], []
     for k in range(cfg.n_ic):
-        s = k * cfg.ic_spacing_steps
+        s = k * spacing
         ics.append(x_attr if s == 0 else jnp.asarray(truth[s - 1]))
         trajs.append(truth[s:s + max_w])
     return ics, trajs

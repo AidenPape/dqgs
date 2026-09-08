@@ -82,10 +82,11 @@ class ExperimentConfig:
     # spin-up onto the attractor (used only when the IC cache is absent).
     spinup_steps: int = 800_000
 
-    # truth segments ("initial conditions"): independent start points spaced
-    # along one long truth trajectory.
+    # truth segments ("initial conditions"): start points spaced along one long
+    # truth trajectory.  The spacing is derived from max(window_steps) inside
+    # ``attractor.build_segments`` rather than set here, so it cannot drift out
+    # of sync with the sweep; see that docstring.
     n_ic: int = 4
-    ic_spacing_steps: int = 3_000
 
     # optimisation-window lengths (steps) to sweep -- spans under-determined
     # (<~2 d), optimal (~2 wk), and degraded (>~1 mo) regimes.

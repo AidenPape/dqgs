@@ -134,6 +134,10 @@ STUDIES = {
         "driver_mode",
         help="does the window depend on how much the driver *varies*? cond(J) vs window "
              "across the ten theta_a modes (CV 5% to 3013%)"),
+    "driver-uncertainty": Study(
+        "driver_uncertainty",
+        help="how well is each driver's own coefficient determined, and what does fitting "
+             "the rest of the library alongside it cost? (no fit: J at c_true)"),
     "alias": Study(
         "alias",
         help="the alias mechanism in three panels (near-constant mode times a driver)"),
@@ -278,8 +282,10 @@ def dispatch(name, overrides, quick=False):
     # different set of field values.
     cfg, values = None, over
     if _takes_cfg(mod, s):
-        cfg = replace(QUICK if quick else ExperimentConfig(),
-                      **{k: v for k, v in over.items() if k in CFG_FIELDS})
+        # A config-driven study may declare its own baseline via ``default_config``; only
+        # the lead-time study does, to sweep windows longer than the shared config's.
+        base = QUICK if quick else getattr(mod, "default_config", ExperimentConfig)()
+        cfg = replace(base, **{k: v for k, v in over.items() if k in CFG_FIELDS})
         values = {**{f: getattr(cfg, f) for f in CFG_FIELDS},
                   **{k: v for k, v in over.items() if k not in CFG_FIELDS}}
     elif quick:

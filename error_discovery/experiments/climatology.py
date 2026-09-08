@@ -120,8 +120,15 @@ def figure():
     # (a) per-mode std-normalised mean bias (log scale): base and corrected both sit
     # far below the run-to-run sampling spread of the climatology at this record.
     floor = float(np.median(d["nb_floor_mean"])) if "nb_floor_mean" in d else None
-    ax[0].bar(x - 0.2, np.maximum(d["nb_base_mean"], 1e-4), 0.4, color="C0", label="uncorrected base")
-    ax[0].bar(x + 0.2, np.maximum(d["nb_corr_mean"], 1e-4), 0.4, color="C2", label="corrected (recovered)")
+    # A log axis cannot draw a zero, so both series are floored -- but the floor has to sit
+    # below the data or it becomes the plot. At 1e-4 it was swallowing all 36 corrected bars
+    # (median 6.8e-12 on the 2026-08-27 run) and 10 of the 36 base ones, reading up to seven
+    # decades high. 1e-15 is below the smallest value either series takes.
+    BAR_FLOOR = 1e-15
+    ax[0].bar(x - 0.2, np.maximum(d["nb_base_mean"], BAR_FLOOR), 0.4, color="C0",
+              label="uncorrected base")
+    ax[0].bar(x + 0.2, np.maximum(d["nb_corr_mean"], BAR_FLOOR), 0.4, color="C2",
+              label="corrected (recovered)")
     if floor is not None:
         ax[0].axhline(floor, ls="--", color="grey", lw=1.2,
                       label=f"sampling spread (median {floor:.2f})")
