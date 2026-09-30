@@ -23,7 +23,7 @@ jax.config.update("jax_enable_x64", True)
 from qgs_jax.spec import extract_spec                          # noqa: E402
 from qgs_jax import model                                      # noqa: E402
 from .. import figstyle                                        # noqa: E402
-from ..config import NDIM_PER_DAY, DT, RESULTS_DIR             # noqa: E402
+from ..config import NDIM_PER_DAY, DT, RESULTS_DIR, IC_CACHE   # noqa: E402
 from ..figstyle import DPI                                     # noqa: E402
 
 IDX_PSIA1 = 0          # leading atmospheric streamfunction mode psi_{a,1}
@@ -38,7 +38,7 @@ def run(nsteps=5000, dt=DT):
     spec = extract_spec()
     T_ref = jnp.asarray(spec.dense_tensor)
 
-    ic = np.load(os.path.join(RESULTS_DIR, "attractor_ic.npz"))["x"].astype(float)
+    ic = np.load(IC_CACHE)["x"].astype(float)
 
     from qgs.integrators.integrator import RungeKuttaIntegrator
     integ = RungeKuttaIntegrator(num_threads=1)

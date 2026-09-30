@@ -5,7 +5,7 @@ error_discovery.experiments.leadtime
 The lead-time error-discovery sweep — the headline study, and the default flag.
 
 Pipeline (fully reproducible from a seed; the expensive attractor spin-up is
-cached to ``results/attractor_ic.npz`` and reused):
+cached to ``results/attractor_ic_default_sp800000.npz`` and reused):
 
 1. Load (or build + cache) a spun-up base-model attractor state.
 2. Build one long truth trajectory with the perturbed model and slice ``n_ic``

@@ -9,7 +9,7 @@ p=QgParams(); p.set_atmospheric_channel_fourier_modes(3,3); p.set_oceanic_basin_
 p.set_params(DEFAULT_MAOOAM_PARAMS); p.atemperature_params.set_params(DEFAULT_ATEMP_PARAMS); p.gotemperature_params.set_params(DEFAULT_GOTEMP_PARAMS)
 p.atemperature_params.set_insolation(*DEFAULT_A_INSOLATION); p.gotemperature_params.set_insolation(*DEFAULT_O_INSOLATION)
 tw=TwinModels(0.1,(0.,0.,1.,0.),params=p)
-xa=jnp.asarray(np.load(os.path.join(HERE,"converged_ndim58.npz"))["x"]); ctrue=np.asarray(tw.c_true)
+xa=jnp.asarray(np.load(os.path.join(HERE,"attractor_ic_default-ndim58_sp910000000.npz"))["x"]); ctrue=np.asarray(tw.c_true)
 mask=jnp.ones(tw.ndim); oidx=obs_indices(mask)
 WINDOWS=[80,160,320,480,640,960,1280,1920,2560,3840,5120,8000]
 days=[];rel=[];ms=[]

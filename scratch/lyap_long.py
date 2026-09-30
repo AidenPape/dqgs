@@ -7,6 +7,10 @@ from qgs_jax.spec import (DEFAULT_MAOOAM_PARAMS,DEFAULT_ATEMP_PARAMS,DEFAULT_GOT
 from qgs_jax import model as jm
 from error_discovery.config import DT, steps_to_days
 HERE=os.path.dirname(os.path.abspath(__file__)); BLOCK=200; N_BLOCKS=25000; D0=1e-8
+# The ~30k-yr states; were converged_ndim<N>.npz, renamed 2026-09-24 (notes/rename_map.md).
+CONVERGED = {36: "attractor_ic_default_sp1030000000.npz",
+             56: "attractor_ic_default-ndim56_sp980000000.npz",
+             58: "attractor_ic_default-ndim58_sp910000000.npz"}
 def bp(ax,ay):
     p=QgParams(); p.set_atmospheric_channel_fourier_modes(ax,ay); p.set_oceanic_basin_fourier_modes(2,4)
     p.set_params(DEFAULT_MAOOAM_PARAMS); p.atemperature_params.set_params(DEFAULT_ATEMP_PARAMS); p.gotemperature_params.set_params(DEFAULT_GOTEMP_PARAMS)
@@ -22,7 +26,7 @@ def benettin(T,x0,ndim,seed):
 print("JAX",jax.devices(),flush=True); out={}
 for ax,ay in [(2,2),(2,4),(3,3)]:
     tw=TwinModels(0.1,(0.,0.,1.,0.),params=bp(ax,ay))
-    x0=jnp.asarray(np.load(os.path.join(HERE,"converged_ndim%d.npz"%tw.ndim))["x"])
+    x0=jnp.asarray(np.load(os.path.join(HERE,CONVERGED[tw.ndim]))["x"])
     run=benettin(tw.T_base,x0,tw.ndim,1); lam=float(run[-1]); h=steps_to_days((1/lam)/DT) if lam>0 else np.inf
     out["run%d"%tw.ndim]=run; out["lam%d"%tw.ndim]=lam
     print("ndim %d: lambda=%.3e horizon=%.1f d (avg over %.0f yr)"%(tw.ndim,lam,h,N_BLOCKS*BLOCK/89.165/365),flush=True)

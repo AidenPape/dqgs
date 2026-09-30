@@ -111,10 +111,34 @@ from error_discovery.experiments import form
 form.figure()                   # redraws from results/form_results.npz
 ```
 
-Everything is seeded. The one expensive step, spinning the base model onto the
-attractor, is cached with a provenance check in `results/attractor_ic.npz` (an
-800k-step spin-up, seed 1) and reused. Do not pass a non-default spin-up to
-`get_attractor_ic`: it overwrites the shared cache. Delete the file to rebuild.
+Everything is seeded. The base model is the `default` parameter set of
+`qgs_jax.spec.PARAM_SETS` (values and source in `QGS_JAX_README.md`, "Parameter sets").
+
+### Spun-up states
+
+A spun-up state is saved as `attractor_ic_<config>_sp<steps>.npz`:
+
+- `<config>` is a `PARAM_SETS` name, which fixes both the parameters and the truncation. A
+  `-ndim<N>` suffix marks a state at a dimension other than that set's own
+  (`default-ndim56`: the `default` parameters with a 2 x 4 atmosphere).
+- `<steps>` is the spin-up length in RK4 steps at `dt = 0.1`, written in full
+  (`sp800000`, `sp1000000000`).
+- A run still in progress is `attractor_ic_<config>_sp<steps>.partial.npz`.
+
+Build names with `config.ic_path(config, steps)`, never by hand. Files written by
+`get_attractor_ic` and `spin_up` store the recipe that produced them, and neither loader uses
+a file whose recipe does not match: `load_spun_up_ic` raises, `get_attractor_ic` rebuilds.
+
+Every study starts from `results/attractor_ic_default_sp800000.npz` (800,000 steps, 24.6 yr,
+seed 1), read through `get_attractor_ic`. Do not pass a non-default spin-up to
+`get_attractor_ic`: it overwrites that shared cache. Delete the file to rebuild.
+
+A 1e9-step (30,706 yr) state of the same set is built by `attractor.spin_up`, about 4.5 h on
+a laptop, checkpointed and resumable, and read back with `attractor.load_spun_up_ic`:
+
+```bash
+python -c "from error_discovery.attractor import spin_up; spin_up('default', 1_000_000_000)"
+```
 
 ## Tests
 

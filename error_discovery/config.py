@@ -31,7 +31,20 @@ def days_to_steps(days):
 # --- where results live (kept beside the code for easy re-runs) ------------- #
 _HERE = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(_HERE, "results")
-IC_CACHE = os.path.join(RESULTS_DIR, "attractor_ic.npz")
+
+
+def ic_path(config, steps, directory=RESULTS_DIR):
+    """Path of a spun-up state: ``attractor_ic_<config>_sp<steps>.npz``.
+
+    ``config`` is a ``qgs_jax.spec.PARAM_SETS`` name, which fixes both the parameters and the
+    truncation; a ``-ndim<N>`` suffix marks a state at a dimension other than that set's own.
+    ``steps`` is the spin-up length in RK4 steps at ``DT``, written in full. The convention is
+    documented in ``error_discovery/README.md``; build every name here, never by hand.
+    """
+    return os.path.join(directory, f"attractor_ic_{config}_sp{int(steps)}.npz")
+
+
+IC_CACHE = ic_path("default", 800_000)     # the state every study starts from
 
 # Form-identifiability margin below which a driver counts as unidentifiable.
 #

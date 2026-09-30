@@ -9,6 +9,10 @@ from qgs_jax.spec import (DEFAULT_MAOOAM_PARAMS,DEFAULT_ATEMP_PARAMS,DEFAULT_GOT
 from error_discovery.discovery import rollout, make_residual, lm_fit, recover, obs_indices
 from error_discovery.config import DT, steps_to_days
 HERE=os.path.dirname(os.path.abspath(__file__))
+# The ~30k-yr states; were converged_ndim<N>.npz, renamed 2026-09-24 (notes/rename_map.md).
+CONVERGED = {36: "attractor_ic_default_sp1030000000.npz",
+             56: "attractor_ic_default-ndim56_sp980000000.npz",
+             58: "attractor_ic_default-ndim58_sp910000000.npz"}
 GC=tuple(float(c) for c in sys.argv[1].split(","))   # e.g. 0,1,1,1
 LABEL=sys.argv[1].replace(",","")
 WINDOWS=[160,320,480,640,960,1280,1920,2560,3840,5120,8000]
@@ -18,7 +22,7 @@ def bp(ax,ay):
     p.atemperature_params.set_insolation(*DEFAULT_A_INSOLATION); p.gotemperature_params.set_insolation(*DEFAULT_O_INSOLATION); return p
 for ax,ay in [(2,2),(3,3)]:
     tw=TwinModels(0.1,GC,params=bp(ax,ay)); ndim=tw.ndim
-    xa=jnp.asarray(np.load(os.path.join(HERE,"converged_ndim%d.npz"%ndim))["x"]); ctrue=np.asarray(tw.c_true)
+    xa=jnp.asarray(np.load(os.path.join(HERE,CONVERGED[ndim]))["x"]); ctrue=np.asarray(tw.c_true)
     mask=jnp.ones(ndim); oidx=obs_indices(mask); days=[];rel=[];ms=[]
     for W in WINDOWS:
         Y=np.asarray(rollout(lambda x: tw.f_true(x), xa, DT, W))

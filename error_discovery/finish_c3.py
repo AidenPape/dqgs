@@ -13,7 +13,8 @@ or detached so it survives a dead shell:
 
 Writes results/sparsity_sparsity.npz, fig_sparsity_noise_sparsity.png,
 fig_sparsity_window_sparsity.png. Reads the cached attractor IC read-only (it does
-NOT rebuild or clobber results/attractor_ic.npz, since the default recipe matches).
+NOT rebuild or clobber results/attractor_ic_default_sp800000.npz, since the default
+recipe matches).
 Prints 'C3_DONE' on success so a watcher can grep for completion.
 """
 import time

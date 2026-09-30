@@ -28,6 +28,10 @@ from qgs_jax import model as jm
 from error_discovery.config import DT, steps_to_days
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# The ~30k-yr states; were converged_ndim<N>.npz, renamed 2026-09-24 (notes/rename_map.md).
+CONVERGED = {36: "attractor_ic_default_sp1030000000.npz",
+             56: "attractor_ic_default-ndim56_sp980000000.npz",
+             58: "attractor_ic_default-ndim58_sp910000000.npz"}
 CONFIGS = [(2, 2), (2, 4), (3, 3)]
 BLOCK = 200
 N_BLOCKS = 3000          # 600k steps ~ 18 model-yr per run
@@ -68,7 +72,7 @@ def run():
     yrs = np.arange(1, N_BLOCKS + 1) * BLOCK / 89.165 / 365
     for axm, aym in CONFIGS:
         tw = TwinModels(0.1, (0.0, 0.0, 1.0, 0.0), params=build_params(axm, aym))
-        x0 = jnp.asarray(np.load(os.path.join(HERE, f"converged_ndim{tw.ndim}.npz"))["x"])
+        x0 = jnp.asarray(np.load(os.path.join(HERE, CONVERGED[tw.ndim]))["x"])
         runs = np.array([benettin(tw.T_base, x0, tw.ndim, s) for s in (1, 7)])
         lam = float(runs[:, -1].mean())
         horizon_d = steps_to_days((1.0 / lam) / DT) if lam > 0 else np.inf

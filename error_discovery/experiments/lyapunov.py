@@ -25,7 +25,7 @@ Three compute steps, each writing its own ``.npz``:
   the old estimator's settings (blocks of 200 steps, 600 of them, first 120 dropped, 5
   initial conditions), so a change in the headline number can be attributed to the
   estimator rather than to the configuration.
-* ``block_sensitivity``: the spectrum of "ours" at renormalisation intervals from 10 to
+* ``block_sensitivity``: the spectrum of "default" at renormalisation intervals from 10 to
   500 steps, from the same state and the same starting frame.
 * ``qgs_check``: qgs's ``LyapunovsEstimator`` (numba, its own analytic Jacobian, RK4
   tangent linear model, QR every step) against ours on the same trajectory. Ours starts
@@ -40,7 +40,7 @@ how each published configuration was read.
 
 Each step can be run on its own, and a configuration per process::
 
-    python -c "from error_discovery.experiments import lyapunov as L; L.run(configs=('ours',))"
+    python -c "from error_discovery.experiments import lyapunov as L; L.run(configs=('default',))"
     python -m error_discovery.run_all --lyapunov --list-params
 """
 
@@ -53,12 +53,12 @@ import jax.numpy as jnp
 
 from .. import figstyle
 from ..config import (RESULTS_DIR, DT, NDIM_PER_DAY, STEPS_PER_DAY, DAYS_PER_YEAR, IC_SEED,
-                      IC_SCALE, ExperimentConfig)
+                      IC_SCALE, ExperimentConfig, ic_path)
 from ..discovery import (lyapunov_spectrum, running_exponents, blocking_error,
                          kolmogorov_entropy, kaplan_yorke_dim)
 
-CONFIGS = ("ours", "tondeur2020_36wk", "tondeur2020_36st", "decruz2018_nodissip")
-LABELS = {"ours": "ours (36 var.)",
+CONFIGS = ("default", "tondeur2020_36wk", "tondeur2020_36st", "decruz2018_nodissip")
+LABELS = {"default": "default (36 var.)",
           "tondeur2020_36wk": "Tondeur 36wk",
           "tondeur2020_36st": "Tondeur 36st",
           "decruz2018_nodissip": "De Cruz nodissip (56 var.)"}
@@ -110,17 +110,17 @@ def _model(name):
 def _spun_up_ic(name, T):
     """The spun-up attractor state of a named configuration.
 
-    "ours" is the project's cached, provenance-checked IC. The others get the same recipe,
+    "default" is the project's cached, provenance-checked IC. The others get the same recipe,
     800k steps from ``IC_SEED`` and ``IC_SCALE``, cached beside it under their own name, so
-    ``attractor_ic.npz`` is never touched.
+    ``IC_CACHE`` is never touched. File names follow ``config.ic_path``.
     """
     cfg = ExperimentConfig()
-    if name == "ours":
+    if name == "default":
         from ..attractor import get_attractor_ic
         from ..formfit import twin
         return np.asarray(get_attractor_ic(twin(), cfg, verbose=False))
     ndim = T.shape[0] - 1
-    path = os.path.join(RESULTS_DIR, f"attractor_ic_{name}.npz")
+    path = ic_path(name, cfg.spinup_steps)
     if os.path.exists(path):
         d = np.load(path)
         if (int(d["ndim"]) == ndim and int(d["spinup_steps"]) == cfg.spinup_steps
@@ -235,14 +235,14 @@ def _run_config(name, years, n_ic, block, tag):
 
 # --------------------------------------------------------------------------- #
 def block_sensitivity(blocks=(10, 50, 100, 200, 500), block_years=60.0, tag="main"):
-    """Spectrum of "ours" at several renormalisation intervals, same state and frame.
+    """Spectrum of "default" at several renormalisation intervals, same state and frame.
 
     In exact arithmetic the interval does not change the exponents, so any spread here is
     what renormalising less often costs in floating point. Every interval covers the same
     steps: the record is rounded to a multiple of all of them.
     """
-    T, f, jac = _model("ours")
-    x0 = _spun_up_ic("ours", T)
+    T, f, jac = _model("default")
+    x0 = _spun_up_ic("default", T)
     unit = int(np.lcm.reduce(np.asarray(blocks)))
     n_steps = unit * max(1, int(round(_years_to_steps(block_years) / unit)))
     spectra = []
@@ -276,14 +276,14 @@ def qgs_check(qgs_pre_years=1.0, qgs_years=2.0, tag="main"):
     from qgs_jax.spec import build_reference_params
 
     block = 100
-    T, f, jac = _model("ours")
-    x0 = _spun_up_ic("ours", T)
+    T, f, jac = _model("default")
+    x0 = _spun_up_ic("default", T)
     n_pre = int(round(_years_to_steps(qgs_pre_years)))
     nb = int(round(_years_to_steps(qgs_years) / block))
     n_rec = nb * block
 
     t = time.time()
-    f_np, Df_np = create_tendencies(build_reference_params("ours"))
+    f_np, Df_np = create_tendencies(build_reference_params("default"))
     est = LyapunovsEstimator(num_threads=1)
     est.set_func(f_np, Df_np)
     est.compute_lyapunovs(0.0, n_pre * DT, (n_pre + n_rec) * DT, DT, DT, np.asarray(x0),
@@ -354,8 +354,8 @@ def figure(tag="main"):
 
     # (c) ours minus qgs on the same trajectory and frame, against our error bar
     qpath = os.path.join(RESULTS_DIR, f"lyapunov_qgs_{tag}.npz")
-    if os.path.exists(qpath) and "ours" in runs:
-        q, se = np.load(qpath), runs["ours"]["se_day"]
+    if os.path.exists(qpath) and "default" in runs:
+        q, se = np.load(qpath), runs["default"]["se_day"]
         idx = np.arange(1, se.size + 1)
         c.fill_between(idx, -se, se, step="mid", color="0.85", lw=0,
                        label=r"$\pm$1 blocking s.e. of our headline estimate")

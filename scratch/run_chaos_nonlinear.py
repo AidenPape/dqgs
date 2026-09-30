@@ -13,6 +13,10 @@ from qgs_jax.spec import (DEFAULT_MAOOAM_PARAMS,DEFAULT_ATEMP_PARAMS,DEFAULT_GOT
 from error_discovery.discovery import rollout, make_residual, lm_fit, obs_indices
 from error_discovery.config import DT, steps_to_days
 HERE=os.path.dirname(os.path.abspath(__file__)); EPS=0.1
+# The ~30k-yr states; were converged_ndim<N>.npz, renamed 2026-09-24 (notes/rename_map.md).
+CONVERGED = {36: "attractor_ic_default_sp1030000000.npz",
+             56: "attractor_ic_default-ndim56_sp980000000.npz",
+             58: "attractor_ic_default-ndim58_sp910000000.npz"}
 WINDOWS=[160,320,480,640,960,1280,1920,2560,3840,5120,8000]
 def bp(ax,ay):
     p=QgParams(); p.set_atmospheric_channel_fourier_modes(ax,ay); p.set_oceanic_basin_fourier_modes(2,4)
@@ -24,7 +28,7 @@ for ax,ay in [(2,2),(3,3)]:
     ith,iTo=tw.idx_thetaa1,tw.idx_To1; E=tw.E_full
     def f_true_nl(x):                       # out-of-class nonlinear gate g=theta_a1*T_o1
         return tw.f_base(x) + EPS*(x[ith]*x[iTo])*(E@x)
-    xa=jnp.asarray(np.load(os.path.join(HERE,"converged_ndim%d.npz"%ndim))["x"])
+    xa=jnp.asarray(np.load(os.path.join(HERE,CONVERGED[ndim]))["x"])
     mask=jnp.ones(ndim); oidx=obs_indices(mask); days=[];floor=[];cons=[]
     for W in WINDOWS:
         Y=np.asarray(rollout(f_true_nl, xa, DT, W))

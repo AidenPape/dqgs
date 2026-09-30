@@ -34,7 +34,8 @@ from qgs.functions.tendencies import create_tendencies
 
 
 # Reference MAOOAM parameter set (Vannitsem et al. 2015 / De Cruz et al. 2016),
-# identical to upstream qgs's qgs_maooam.py example.
+# identical to upstream qgs's qgs_maooam.py example. The "default" set below; its values and
+# source are tabulated in QGS_JAX_README.md, "Parameter sets".
 DEFAULT_MAOOAM_PARAMS = dict(
     kd=0.0290, kdp=0.0290, n=1.5, r=1.0e-7, h=136.5, d=1.1e-7,
 )
@@ -51,19 +52,19 @@ def _dense(arr):
     return np.asarray(arr, dtype=np.float64)
 
 
-# Named parameter sets, so a study can ask for a published configuration by name. "ours"
+# Named parameter sets, so a study can ask for a published configuration by name. "default"
 # is the set above and stays the default everywhere. Parameters a set does not list take
 # qgs's defaults; in particular gamma_a = 1e7 J m^-2 K^-1 in all of them.
 _KD_DECRUZ = 3.0e-6 / 1.032e-4          # k_d = k'_d = 3.0e-6 s^-1 at f0 = 1.032e-4 s^-1
 
 PARAM_SETS = dict(
-    ours=dict(
+    default=dict(
         atm_modes=(2, 2), oc_modes=(2, 4),
         maooam=DEFAULT_MAOOAM_PARAMS, atemp=DEFAULT_ATEMP_PARAMS, gotemp=DEFAULT_GOTEMP_PARAMS,
         a_insolation=DEFAULT_A_INSOLATION, o_insolation=DEFAULT_O_INSOLATION),
     # De Cruz et al. 2018 (NPG 25, 387), experiment "nodissip": their Table 3 plus d = 1.1e-7.
     # Their smallest resolution is atmosphere 2x4 + ocean 2x4, ndim 56, not our 2x2
-    # atmosphere. Table 3 is De Cruz et al. 2016's Table 1, which differs from "ours" in
+    # atmosphere. Table 3 is De Cruz et al. 2016's Table 1, which differs from "default" in
     # gamma_o (5.46e8, not 5.6e8) and in k_d converted to 0.02907 rather than rounded to
     # 0.0290. They integrate at dt = 0.2; a caller using dt = 0.1 is not matching that.
     decruz2018_nodissip=dict(
@@ -76,7 +77,7 @@ PARAM_SETS = dict(
     # kp, "the friction coefficients at the bottom of the atmosphere [and] between internal
     # atmospheric layers", are taken as qgs's kd and kdp, which are De Cruz et al. 2016's
     # k_d and k'_d. No factor-2 convention is stated anywhere in their text. C_atm = C_ocn =
-    # 310 W m^-2 as their Table 2 prints, not "ours"'s C_o / 3. n, r and eps_a are not in
+    # 310 W m^-2 as their Table 2 prints, not "default"'s C_o / 3. n, r and eps_a are not in
     # their tables and take De Cruz et al. 2016's values. Their parameter reference,
     # Vannitsem 2015 GRL, was not accessible, so the literal reading of k and C_atm is not
     # verified against the code they ran.
@@ -95,10 +96,10 @@ PARAM_SETS = dict(
 )
 
 
-def build_reference_params(name="ours"):
+def build_reference_params(name="default"):
     """Build a named MAOOAM :class:`QgParams` from :data:`PARAM_SETS`.
 
-    The default, "ours", is the canonical configuration: atmosphere 2x2 + ocean 2x4.
+    "default" is the canonical configuration: atmosphere 2x2 + ocean 2x4.
     """
     s = PARAM_SETS[name]
     p = QgParams()
