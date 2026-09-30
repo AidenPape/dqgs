@@ -17,6 +17,7 @@ F0 = 1.032e-4                       # Coriolis parameter [s^-1]
 NDIM_PER_DAY = F0 * 86400.0         # = 8.91648 nondim time units per day
 DT = 0.1                            # integration step (nondim)
 STEPS_PER_DAY = NDIM_PER_DAY / DT   # = 89.16 steps per day
+DAYS_PER_YEAR = 365.25              # for records quoted in model-years
 
 
 def steps_to_days(n_steps):

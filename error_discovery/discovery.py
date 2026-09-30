@@ -169,6 +169,19 @@ def coefficient_uncertainty(J):
     ``align[i] = |V[i, -1]|`` is the overlap of coefficient i with the worst-determined right
     singular direction. Unlike ``cond(J)``, which is built from singular *values* and so
     cannot know which coefficient is the true one, all four of these are per-coefficient.
+
+    ``align`` and ``vif`` are not redundant, and a large ``vif`` at ``align`` near 1 is not a
+    contradiction. Writing ``p_j = V[i, j]^2`` for how coefficient i's direction spreads
+    over the right singular vectors, so that ``p_last = align[i]^2``, the exact relation is
+
+        vif[i] = (sum_j p_j s_j^2)(sum_j p_j / s_j^2)
+               <= align[i]^2 + (1 - align[i]^2) cond(J)^2
+
+    so only ``align[i]`` *exactly* 1 forces ``vif[i] = 1``. The approach to that limit is not
+    uniform in the spectrum: the leftover mass ``1 - align[i]^2`` sits on directions up to
+    ``cond(J)`` times better determined and dominates ``||J e_i||``, so at ``cond(J) = 8e4`` an
+    ``align`` of 0.999 still admits a ``vif`` near 1e8. The aliasing cost is set by the
+    spectrum, the alignment only by the direction -- which is why the study reports both.
     """
     J = np.asarray(J)
     _, sv, Vt = np.linalg.svd(J, full_matrices=False)
@@ -255,3 +268,137 @@ def lyapunov_time(tw, x0, dt, block=200, n_blocks=300, drop=40, d0=1e-7, seed=0)
     lam = logs.mean() / (block * dt)
     tau = 1.0 / lam if lam > 0 else np.inf
     return lam, tau, steps_to_days(tau / dt)
+
+
+# --------------------------------------------------------------------------- #
+# Lyapunov spectrum (Benettin with QR) through the tangent linear model, and the
+# pure reductions of its per-block output. Every diagnostic here is named and
+# defined in plans/lyapunov-validation.md, "The diagnostics".
+# --------------------------------------------------------------------------- #
+def lyapunov_spectrum(f, x0, dt, block=100, n_blocks=1000, n_vec=None, jac=None, Q0=None,
+                      seed=0):
+    """Benettin/QR Lyapunov spectrum of the tendency ``f``, via the tangent linear model.
+
+    Every ``block`` RK4 steps, a frame ``Q`` of ``n_vec`` orthonormal tangent vectors is
+    pushed through the block's tangent propagator ``M`` and re-orthonormalised,
+    ``M Q = Q' R``. The log-stretch of block ``b`` along direction ``i`` is ``log R_ii``;
+    its long-time average divided by ``block * dt`` is exponent ``i``.
+
+    ``M`` is exact, not a finite difference, so there is no perturbation size and no
+    linear-regime question. The tangent vectors ride the same RK4 stages as the state,
+    with the Jacobian ``jac`` evaluated at each stage, which makes ``M`` the derivative of
+    the discrete RK4 block map. On MAOOAM this matches ``jax.jacfwd`` of the block flow
+    map to 1e-16.
+
+    ``jac`` defaults to ``jax.jacfwd(f)``. Passing the closed-form Jacobian gives the same
+    numbers 8-10x faster on MAOOAM, because autodiff pushes every tangent vector through
+    the rank-3 tendency tensor separately.
+
+    ``Q0`` is the starting frame, shape ``(ndim, n_vec)``, orthonormal columns. By default
+    it is the first ``n_vec`` columns of a seeded random orthogonal matrix, so ``n_vec=1``
+    follows exactly the first column of the full frame: QR's first column depends only on
+    the first column of ``M Q``.
+
+    Returns ``(logs, x_end)``: the per-block log-stretches, shape ``(n_blocks, n_vec)``,
+    and the final state. Nothing is averaged or discarded here. The running estimate, the
+    error bar and any transient discard are post-hoc reductions of ``logs``.
+    """
+    n = int(np.asarray(x0).shape[0])
+    if Q0 is None:
+        n_vec = n if n_vec is None else int(n_vec)
+        Q0 = np.linalg.qr(np.random.default_rng(seed).standard_normal((n, n)))[0][:, :n_vec]
+    Q = jnp.asarray(Q0)
+    jac = jax.jacfwd(f) if jac is None else jac
+
+    def tl_step(carry, _):
+        x, V = carry
+        k1 = f(x)
+        L1 = jac(x) @ V
+        x2 = x + 0.5 * dt * k1
+        k2 = f(x2)
+        L2 = jac(x2) @ (V + 0.5 * dt * L1)
+        x3 = x + 0.5 * dt * k2
+        k3 = f(x3)
+        L3 = jac(x3) @ (V + 0.5 * dt * L2)
+        x4 = x + dt * k3
+        k4 = f(x4)
+        L4 = jac(x4) @ (V + dt * L3)
+        return (x + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4),
+                V + (dt / 6.0) * (L1 + 2.0 * L2 + 2.0 * L3 + L4)), None
+
+    @jax.jit
+    def advance(x, Q):
+        (x, MQ), _ = jax.lax.scan(tl_step, (x, Q), None, length=block)
+        Q, R = jnp.linalg.qr(MQ)
+        d = jnp.diag(R)
+        return x, Q * jnp.sign(d), jnp.log(jnp.abs(d))   # sign fix: diag(R) > 0
+
+    x = jnp.asarray(np.asarray(x0))
+    logs = np.empty((n_blocks, Q.shape[1]))
+    for b in range(n_blocks):
+        x, Q, lg = advance(x, Q)
+        logs[b] = np.asarray(lg)
+    return logs, np.asarray(x)
+
+
+def running_exponents(logs, t_block):
+    """Running estimate ``lambda_i(T)``: each exponent from the first T units only.
+
+    Row ``k`` is the mean log-stretch over blocks ``0..k`` divided by ``t_block``, so the
+    last row is the plain estimate. A flat tail means converged; a tail still drifting by
+    more than the error bar means the record is too short.
+    """
+    logs = np.asarray(logs, dtype=float)
+    n = np.arange(1, logs.shape[0] + 1)[:, None]
+    return np.cumsum(logs, axis=0) / (n * t_block)
+
+
+def blocking_error(logs, t_block, min_batches=32):
+    """Blocking (batch-means) standard error of each exponent, against batch length.
+
+    The per-block log-stretches are correlated, so ``std / sqrt(n_blocks)`` understates
+    the error. Consecutive blocks are grouped into batches of ``L = 1, 2, 4, ...`` blocks.
+    The variance of the batch means divided by the number of batches estimates the
+    variance of the overall mean. It rises with ``L`` until batches outlast the
+    correlation time, then plateaus, and the plateau is the error bar.
+
+    ``L`` stops at the longest length that still leaves ``min_batches`` batches. There
+    the estimate's own relative error is about ``1 / sqrt(2 * min_batches)``, 12% at 32.
+
+    Returns ``(L, se)`` with ``se`` of shape ``(len(L), n_vec)``, in exponent units per
+    time unit of ``t_block``. Quote ``se[-1]``. If ``se`` is still rising at the longest
+    ``L``, no plateau was reached, the record is too short, and ``se[-1]`` is a lower bound.
+    """
+    x = np.asarray(logs, dtype=float) / t_block
+    Ls, se = [], []
+    L = 1
+    while x.shape[0] // L >= min_batches:
+        nb = x.shape[0] // L
+        means = x[:nb * L].reshape(nb, L, -1).mean(axis=1)
+        Ls.append(L)
+        se.append(means.std(axis=0, ddof=1) / np.sqrt(nb))
+        L *= 2
+    return np.array(Ls), np.array(se)
+
+
+def kolmogorov_entropy(spectrum):
+    """Kolmogorov entropy: the sum of the positive exponents, in the spectrum's units."""
+    s = np.asarray(spectrum, dtype=float)
+    return float(s[s > 0].sum())
+
+
+def kaplan_yorke_dim(spectrum):
+    """Kaplan-Yorke dimension, ``k + (lambda_1 + ... + lambda_k) / |lambda_{k+1}|``.
+
+    The spectrum is sorted in decreasing order first, and ``k`` is the largest index whose
+    partial sum is non-negative. Returns 0 if ``lambda_1 < 0``, and the full dimension if
+    no partial sum goes negative. The result does not depend on the time unit.
+    """
+    s = np.sort(np.asarray(spectrum, dtype=float))[::-1]
+    c = np.cumsum(s)
+    if c[0] < 0:
+        return 0.0
+    k = int(np.nonzero(c >= 0)[0][-1]) + 1
+    if k == s.size:
+        return float(k)
+    return k + c[k - 1] / abs(s[k])

@@ -153,6 +153,10 @@ STUDIES = {
         "jax_validation",
         help="the JAX rewrite reproduces the original qgs model (imports the original "
              "qgs integrator; see its docstring)"),
+    "lyapunov": Study(
+        "lyapunov", steps=("run", "block_sensitivity", "qgs_check"),
+        help="Lyapunov spectrum with convergence and blocking error bars, checked against "
+             "the divergence identity, qgs's own estimator and published values"),
     "oracle": Study(
         "oracle", figure=None,
         help="why the noiseless mixed-driver ocean coefficient comes out low: rank, "
