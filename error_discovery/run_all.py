@@ -85,6 +85,10 @@ STUDIES = {
     "sparsity": Study(
         "sparsity",
         help="partial-observation study (which variables are observed)"),
+    "sampling-checks": Study(
+        "sampling_checks", steps=("base_run", "label", "run"),
+        help="the long base run the sampled studies draw from: block check for drift, "
+             "choice of the regime window T, regime labels against psi_a1 (plans/sampling.md)"),
     # --- unknown form: can it be discovered at all, and from what data? ------- #
     "form": Study(
         "form",

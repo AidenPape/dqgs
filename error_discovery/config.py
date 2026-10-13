@@ -46,6 +46,40 @@ def ic_path(config, steps, directory=RESULTS_DIR):
 
 IC_CACHE = ic_path("default", 800_000)     # the state every study starts from
 
+
+# --- the sampling standard (plans/sampling.md; machinery in sampling.py) ----- #
+# A long base-model run forward from the 1e9-step state, saved as daily snapshots, labelled
+# passive / active on psi_a1's variability (Tondeur et al. 2020), from which each study draws
+# its starting states.
+SAMPLING_SOURCE = ("default", 1_000_000_000)   # (config, spin-up steps) the base run starts from
+BASE_RUN_YEARS = 10_000             # length of the base run the studies currently sample from
+CHUNK_YEARS = 1_000                 # one base-run file per this many model-years
+SNAPSHOT_EVERY = 89                 # steps between saved snapshots (0.998 d)
+REGIME_T_DAYS = (30, 100, 365, 1000)   # candidate running-std windows; the labels pick one
+REGIME_CUTOFF = 0.9                 # passive / active only at >= this mixture probability
+HIGHPASS_DAYS = 30                  # running mean removed before the noise-scale std (Brajard 2021)
+TAU_C = 6                           # Sokal's window constant: sum the autocorrelation to M >= c tau
+N_SAMPLES = 16                      # starting states per study and sampling mode
+SPACING_K = 3                       # starting states at least k x the largest tau_int apart
+MIN_EPISODE_DAYS = 365.25           # a regime run counts as an episode only if at least this long
+ETA_GRID = (1e-4, 1e-3, 1e-2, 1e-1)    # noise levels x high-frequency std, sampled modes
+
+
+def baserun_path(config, start_steps, yr0, yr1, directory=RESULTS_DIR):
+    """Path of one base-run chunk: ``baserun_<config>_sp<steps>_yr<yr0>-<yr1>.npz``.
+
+    ``config`` and ``start_steps`` name the spun-up state the run starts from (``ic_path``);
+    ``yr0``-``yr1`` are model-years since the run began. Build every name here, never by hand.
+    """
+    return os.path.join(directory, f"baserun_{config}_sp{int(start_steps)}"
+                                   f"_yr{int(yr0):05d}-{int(yr1):05d}.npz")
+
+
+def regimes_path(config, start_steps, yr0, yr1, directory=RESULTS_DIR):
+    """Path of the regime labels and record statistics for base-run years ``yr0``-``yr1``."""
+    return os.path.join(directory, f"regimes_{config}_sp{int(start_steps)}"
+                                   f"_yr{int(yr0):05d}-{int(yr1):05d}.npz")
+
 # Form-identifiability margin below which a driver counts as unidentifiable.
 #
 # OPEN QUESTION (flagged 2026-08-13). This number is not derived. It is a round 10%:

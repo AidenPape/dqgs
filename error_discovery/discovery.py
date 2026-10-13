@@ -135,7 +135,7 @@ def jacobian_spectrum(J):
                 rank=rank, cond_JtJ=cond_J ** 2)
 
 
-def residual_jacobian(tw, x0, Y_true, dt, mask, c=None, whiten=False):
+def residual_jacobian(tw, x0, Y_true, dt, mask, c=None, whiten=False, scale=None):
     """The residual Jacobian ``d resid / dc`` evaluated at ``c`` (default ``tw.c_true``).
 
     No optimisation is involved. Because the discovery model class contains the truth, the
@@ -144,9 +144,15 @@ def residual_jacobian(tw, x0, Y_true, dt, mask, c=None, whiten=False):
     single Jacobian rather than off a converged fit. ``Y_true`` is the clean trajectory:
     observation noise moves the minimiser, but not this Jacobian, which is a property of the
     model and the truth trajectory alone.
+
+    ``scale`` (one std per state variable) replaces the within-window std as the whitening
+    scale; the sampling standard passes the high-frequency climatological std.
     """
     oidx = obs_indices(mask)
-    wchan = channel_weights(Y_true, oidx) if whiten else None
+    if scale is None:
+        wchan = channel_weights(Y_true, oidx) if whiten else None
+    else:
+        wchan = 1.0 / np.asarray(scale)[oidx] if whiten else None
     resid = make_residual(tw, x0, Y_true, dt, oidx, wchan=wchan)
     c = tw.c_true if c is None else c
     return np.asarray(jax.jacfwd(resid)(jnp.asarray(c)))
@@ -211,16 +217,30 @@ def add_obs_noise(Y, oidx, eta, rng):
     return Y
 
 
-def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=False):
+def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=False,
+            scale=None, noise=None):
     """Run one discovery (optionally with observation noise). Returns a dict. With
     ``whiten=True`` each observed channel's residual is divided by that channel's
     climatological standard deviation, the assumed per-channel observation-error scale
     (noise std = eta * std), so channels of different amplitude contribute on equal
-    terms and adding a channel cannot reduce the Fisher information (reviewer #6/#7)."""
+    terms and adding a channel cannot reduce the Fisher information (reviewer #6/#7).
+
+    By default that std is taken over the window being fit and the noise is drawn fresh from
+    ``noise_seed``. The sampling standard (``plans/sampling.md``) instead passes ``scale``, one
+    std per state variable (the high-frequency climatological std), and ``noise``, a standard
+    normal array of at least ``len(Y_true)`` rows and one column per state variable, shared
+    across windows, noise levels and drivers (common random numbers)."""
     oidx = obs_indices(mask)
-    rng = np.random.default_rng(noise_seed)
-    Y = add_obs_noise(Y_true, oidx, eta, rng)
-    wchan = channel_weights(Y_true, oidx) if whiten else None
+    if scale is None:
+        rng = np.random.default_rng(noise_seed)
+        Y = add_obs_noise(Y_true, oidx, eta, rng)
+        wchan = channel_weights(Y_true, oidx) if whiten else None
+    else:
+        scale = np.asarray(scale)
+        Y = np.array(Y_true, dtype=float)
+        if eta > 0:
+            Y[:, oidx] += eta * np.asarray(noise)[:len(Y)][:, oidx] * scale[oidx]
+        wchan = 1.0 / scale[oidx] if whiten else None
     resid = make_residual(tw, x0, Y, dt, oidx, wchan=wchan)
     c_hat, J_final, hist = lm_fit(resid, jnp.zeros(4), n_iters=n_iters)
     c_hat = np.asarray(c_hat)

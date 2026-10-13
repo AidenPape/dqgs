@@ -15,6 +15,7 @@ dependencies = [
     "numpy",
     "scipy",
     "matplotlib",
+    "scikit-learn",          # GaussianMixture, for the regime labels in sampling.py
     # qgs's own runtime dependencies, listed explicitly so it can be installed
     # with --no-deps: upstream declares ipython and jupyter as hard dependencies,
     # which pull in ~50 packages this project never uses.

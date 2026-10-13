@@ -29,3 +29,12 @@ def pyplot():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     return plt
+
+
+def finish(fig, line=None):
+    """``tight_layout``, with ``line`` (a sampled run's ``sampling.sampling_line``) as a
+    suptitle when given -- ``tight_layout`` makes room for it. Without one the layout is
+    unchanged."""
+    if line:
+        fig.suptitle(line, fontsize=10)
+    fig.tight_layout()

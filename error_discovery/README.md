@@ -45,6 +45,7 @@ The package is in two halves: **machinery** at the top level, **studies** in
 | `config.py`   | all knobs (`ExperimentConfig`, `QUICK`), constants (`DT`, `EPS`, `THRESH`), nondim-to-days conversion |
 | `models.py`   | `TwinModels`: base / truth / discovery tendencies in JAX; observation operators |
 | `attractor.py`| the cached 800k-step spin-up state, and the truth segments cut from it |
+| `sampling.py` | the sampling standard: the long base run, its passive / active regime labels, and the starting states studies draw from it |
 | `discovery.py`| known-form recovery: rollout, Levenberg-Marquardt, `cond(JᵀJ)`, Lyapunov time |
 | `formfit.py`  | unknown-form recovery: the twin, the sampling distributions, the candidate library, the closed-form fit, and the identifiability **margin** |
 | `screening.py`| the `\|mean\|/std` diagnostic and the restricted-vs-full quadratic library |
@@ -57,6 +58,7 @@ The package is in two halves: **machinery** at the top level, **studies** in
 |------|----------|
 | `leadtime.py`     | over what forecast window is a known-form error recoverable? |
 | `sparsity.py`     | which observed variables are enough? |
+| `sampling_checks.py` | is the base run free of drift, which regime window T, and do the labels match psi_a1? |
 | `form.py`         | can the *form* be discovered from trajectories at all? (E1-E5) |
 | `obstruction.py`  | what blocks it — near-constant modes, and how the library choice decides |
 | `reanalysis.py`   | is reanalysis far enough off the biased attractor to identify the form? |
@@ -139,6 +141,28 @@ a laptop, checkpointed and resumable, and read back with `attractor.load_spun_up
 ```bash
 python -c "from error_discovery.attractor import spin_up; spin_up('default', 1_000_000_000)"
 ```
+
+### The sampling standard
+
+New runs of the five segment studies (`leadtime`, `driver_window`, `driver_mode`,
+`driver_uncertainty`, `sparsity`) can take their starting states from a long base run instead
+of the 800k state: `--set sampling=passive`, `active` or `both` (default `legacy`, the original
+design, which every `*_main.npz` uses). The design and every choice in it are in
+`plans/sampling.md`, two levels up. Files, all in `results/`, named by functions in `config.py`:
+
+- `baserun_<config>_sp<steps>_yr<start>-<end>.npz` (`config.baserun_path`): one 1,000-yr chunk of
+  the base-model run forward from `attractor_ic_<config>_sp<steps>.npz`, the full state once per
+  simulated day (every 89 steps), years counted from the start of the run.
+- `regimes_<config>_sp<steps>_yr<start>-<end>.npz` (`config.regimes_path`): passive / active
+  probabilities for every snapshot, the per-variable tau_int and high-frequency std.
+
+```bash
+python -m error_discovery.run_all --sampling-checks       # base run, labels, checks, figures
+python -m error_discovery.run_all --driver-uncertainty --set sampling=both --set tag=both
+```
+
+Existing chunks are skipped, so a larger `--set n_years=` extends the record forward. A sampled
+run left on its study's default tag is written under the mode's name, never over `main`.
 
 ## Tests
 

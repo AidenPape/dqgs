@@ -57,11 +57,14 @@ import numpy as np
 from matplotlib.transforms import blended_transform_factory
 
 from .. import figstyle
-from ..attractor import get_attractor_ic, build_segments
-from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..attractor import get_attractor_ic, build_segments, segments_from_states
+from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+                      MIN_EPISODE_DAYS, ETA_GRID)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
 from ..discovery import recover, lyapunov_time
+from ..sampling import (starting_states, sample_record, noise_scale, shared_noise,
+                        sampling_line)
 
 
 # This study sweeps further than the shared config does. The right arm of the U only resolves
@@ -82,16 +85,27 @@ def default_config(tag="main"):
     return cfg
 
 
-def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
+def run(cfg: ExperimentConfig = None, verbose=True, whiten=False,
+        sampling="legacy", n_samples=N_SAMPLES, spacing_k=SPACING_K,
+        min_episode_days=MIN_EPISODE_DAYS, placement="onset", discard=0, eta_grid=ETA_GRID):
     """Run the lead-time sweep. With ``whiten=True`` every fit (noiseless and noisy)
     divides each observed channel's residual by that channel's climatological std, so the
     reported conditioning is that of the properly-weighted Jacobian J_w = W J and the
     noisy recovery is the weighted least-squares estimate (reviewer #6/#7). The recovered
     coefficients are unchanged in the noiseless limit (the twin truth is a zero-residual
-    minimizer under any positive weighting); only the geometry the SVD sees changes."""
+    minimizer under any positive weighting); only the geometry the SVD sees changes.
+
+    ``sampling="legacy"`` is the original design. ``"passive"``, ``"active"`` or ``"both"``
+    follow the sampling standard (``plans/sampling.md``): ``n_samples`` starting states from
+    the long base run in place of ``cfg.n_ic`` segments; the climatological noise scale; one
+    standard-normal draw per (state, seed) reused for every window and level; levels
+    ``eta_grid`` in place of ``cfg.noise_levels``; and the Lyapunov time computed from every
+    starting state (``lam_max_per_state``, median under ``lam_max``). A sampled run left on
+    the default tag is written under the mode's name instead."""
     if cfg is None:
         cfg = default_config()
     t0 = time.time()
+    tag = cfg.tag
 
     tw = TwinModels(cfg.eps, cfg.g_coeffs)
     vr = tw.spec.variables_range
@@ -100,16 +114,29 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
         print(f"[setup] ndim={tw.ndim} eps={cfg.eps} g_coeffs={cfg.g_coeffs} "
               f"obs={cfg.obs} c_true={np.asarray(tw.c_true)}")
 
-    x_attr = get_attractor_ic(tw, cfg, verbose)
-    seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
-
-    lam, tau, tau_days = lyapunov_time(tw, x_attr, cfg.dt, n_blocks=cfg.lyap_blocks)
+    windows = cfg.window_steps
+    picks, scale, etas = {}, None, cfg.noise_levels
+    if sampling == "legacy":
+        x_attr = get_attractor_ic(tw, cfg, verbose)
+        seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        lam, tau, tau_days = lyapunov_time(tw, x_attr, cfg.dt, n_blocks=cfg.lyap_blocks)
+    else:
+        tag = sampling if tag == "main" else tag
+        picks = starting_states(sampling, n_samples, spacing_k, min_episode_days, placement,
+                                window_steps=discard + max(windows))
+        seg_ics, seg_trajs = segments_from_states(tw, picks["states"], max(windows), cfg.dt,
+                                                  discard)
+        scale, etas = noise_scale(), eta_grid
+        noise = [[shared_noise(i, s, max(cfg.noise_windows), tw.ndim)
+                  for s in range(cfg.n_noise_seeds)] for i in picks["snapshot_index"]]
+        lyap = np.asarray([lyapunov_time(tw, x, cfg.dt, n_blocks=cfg.lyap_blocks)
+                           for x in seg_ics])
+        lam, tau_days = float(np.median(lyap[:, 0])), float(np.median(lyap[:, 2]))
     if verbose:
         print(f"[lyap]  lambda_max={lam:.4g}/nondim  tau_lyap={tau_days:.1f} days "
               f"(weakly chaotic; context only)")
 
-    windows = cfg.window_steps
-    nW, nI = len(windows), cfg.n_ic
+    nW, nI = len(windows), (cfg.n_ic if sampling == "legacy" else n_samples)
 
     # --- noiseless sweep: recovery + conditioning -------------------------- #
     rel = np.full((nW, nI), np.nan)
@@ -122,7 +149,7 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
     for iw, w in enumerate(windows):
         for k in range(nI):
             r = recover(tw, seg_ics[k], seg_trajs[k][:w], cfg.dt, mask,
-                        eta=0.0, n_iters=cfg.lm_iters, whiten=whiten)
+                        eta=0.0, n_iters=cfg.lm_iters, whiten=whiten, scale=scale)
             rel[iw, k] = r["rel_err"]
             cond[iw, k] = r["cond"]
             cond_J[iw, k] = r["cond_J"]
@@ -138,25 +165,29 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
                   f"rank med={np.nanmedian(jrank[iw]):.0f}")
 
     # --- noise sweep: recovery vs window for several noise levels ---------- #
-    etas = cfg.noise_levels
     nWn = len(cfg.noise_windows)
     rel_noise = np.full((len(etas), nWn, nI, cfg.n_noise_seeds), np.nan)
     for ie, eta in enumerate(etas):
         for jw, w in enumerate(cfg.noise_windows):
             for k in range(nI):
                 for s in range(cfg.n_noise_seeds):
-                    # unique, reproducible noise stream per (eta, window, segment, seed)
-                    ns = cfg.seed + (((ie * nWn + jw) * nI + k) * cfg.n_noise_seeds + s)
-                    r = recover(tw, seg_ics[k], seg_trajs[k][:w], cfg.dt, mask,
-                                eta=eta, n_iters=cfg.lm_iters, noise_seed=ns,
-                                whiten=whiten)
+                    if sampling == "legacy":
+                        # unique, reproducible noise stream per (eta, window, segment, seed)
+                        ns = cfg.seed + (((ie * nWn + jw) * nI + k) * cfg.n_noise_seeds + s)
+                        r = recover(tw, seg_ics[k], seg_trajs[k][:w], cfg.dt, mask,
+                                    eta=eta, n_iters=cfg.lm_iters, noise_seed=ns,
+                                    whiten=whiten)
+                    else:
+                        r = recover(tw, seg_ics[k], seg_trajs[k][:w], cfg.dt, mask,
+                                    eta=eta, n_iters=cfg.lm_iters, whiten=whiten,
+                                    scale=scale, noise=noise[k][s])
                     rel_noise[ie, jw, k, s] = r["rel_err"]
         if verbose:
             print(f"[noise] eta={eta:.0e}  rel_err med over windows="
                   f"{np.nanmedian(rel_noise[ie], axis=(1, 2))}")
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    out = os.path.join(RESULTS_DIR, f"leadtime_{cfg.tag}.npz")
+    out = os.path.join(RESULTS_DIR, f"leadtime_{tag}.npz")
     np.savez(
         out,
         windows=np.asarray(windows),
@@ -169,7 +200,9 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False):
         rel_err_noise=rel_noise,
         lam_max=lam, tau_lyap_days=tau_days,
         eps=cfg.eps, g_coeffs=np.asarray(cfg.g_coeffs), obs=cfg.obs,
-        dt=cfg.dt, seed=cfg.seed,
+        dt=cfg.dt, seed=cfg.seed, sampling=sampling, **sample_record(picks),
+        **({} if sampling == "legacy" else {"lam_max_per_state": lyap[:, 0],
+                                            "tau_lyap_days_per_state": lyap[:, 2]}),
     )
     if verbose:
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s total)")
@@ -264,10 +297,10 @@ def fig_recovery_and_conditioning(tag="main"):
         axb.set_xlabel("optimisation window  [days]")
         axb.set_ylabel("singular values of $J$")
         axb.set_title(rf"(b)  rank {int(np.nanmin(rank))}/4 throughout; "
-                      r"rank 4/4 throughout; short-window loss $=\sigma_{\min}$",
+                      r"short-window loss $=\sigma_{\min}$",
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
-    fig.tight_layout()
+    figstyle.finish(fig, sampling_line(d))
     out = os.path.join(RESULTS_DIR, f"fig_recovery_conditioning_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
@@ -323,10 +356,10 @@ def fig_conditioning_only(tag="main_whiten"):
         axb.set_xlabel("optimisation window  [days]")
         axb.set_ylabel("singular values of $J$")
         axb.set_title(rf"(b)  rank {int(np.nanmin(rank))}/4 throughout; "
-                      r"rank 4/4 throughout; short-window loss $=\sigma_{\min}$",
+                      r"short-window loss $=\sigma_{\min}$",
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
-    fig.tight_layout()
+    figstyle.finish(fig, sampling_line(d))
     out = os.path.join(RESULTS_DIR, f"fig_conditioning_only_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
@@ -349,7 +382,7 @@ def fig_coeff_recovery(tag="main"):
         ax.legend(frameon=False, fontsize=8)
     for ax in axes[1]:
         ax.set_xlabel("optimisation window  [days]")
-    fig.tight_layout()
+    figstyle.finish(fig, sampling_line(d))
     out = os.path.join(RESULTS_DIR, f"fig_coeff_recovery_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
@@ -377,7 +410,7 @@ def fig_noise(tag="main"):
     ax.set_xlabel("optimisation window  [days]")
     ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
     ax.legend(frameon=False, fontsize=8)
-    fig.tight_layout()
+    figstyle.finish(fig, sampling_line(d))
     out = os.path.join(RESULTS_DIR, f"fig_noise_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out

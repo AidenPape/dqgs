@@ -90,6 +90,24 @@ def build_segments(tw, cfg, x_attr):
     return ics, trajs
 
 
+def segments_from_states(tw, states, n_steps, dt, discard=0):
+    """Return (segment_ics, truth_trajs), one segment per given starting state.
+
+    The sampling standard's counterpart of ``build_segments`` (``plans/sampling.md``): each
+    state comes from the base run, so ``f_true`` runs ``discard`` steps from it before the
+    segment begins (default 0: the window starts at the switch), then ``n_steps`` more. The
+    convention is ``build_segments``'s: ``truth_traj[0]`` is one step after the segment IC.
+    """
+    ics, trajs = [], []
+    for x in states:
+        x = jnp.asarray(x)
+        if discard:
+            x = rollout(lambda y: tw.f_true(y), x, dt, discard)[-1]
+        ics.append(x)
+        trajs.append(np.asarray(rollout(lambda y: tw.f_true(y), x, dt, n_steps)))
+    return ics, trajs
+
+
 def _recipe(config, n_steps):
     """What fixes a long spun-up state: stored beside it by ``spin_up``, checked on load."""
     from qgs_jax.spec import PARAM_SETS

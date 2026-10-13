@@ -127,11 +127,13 @@ import time
 import numpy as np
 
 from .. import figstyle
-from ..attractor import get_attractor_ic, build_segments
-from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..attractor import get_attractor_ic, build_segments, segments_from_states
+from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+                      MIN_EPISODE_DAYS, ETA_GRID)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
 from ..discovery import recover
+from ..sampling import starting_states, sample_record, noise_scale, shared_noise
 
 # The driver always sits in slot 1 of phi; only which theta_a mode fills it varies.
 G_DRIVER = (0.0, 1.0, 0.0, 0.0)
@@ -139,8 +141,18 @@ ALL_MODES = tuple(range(1, 11))
 
 
 def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
-        noise_levels=(1e-4, 1e-3), whiten=True, verbose=True):
+        noise_levels=(1e-4, 1e-3), whiten=True, verbose=True,
+        sampling="legacy", n_samples=N_SAMPLES, spacing_k=SPACING_K,
+        min_episode_days=MIN_EPISODE_DAYS, placement="onset", discard=0, eta_grid=ETA_GRID):
     """Sweep the optimisation window once per theta_a mode, noiseless and under noise.
+
+    ``sampling="legacy"`` is the original design below. ``"passive"``, ``"active"`` or
+    ``"both"`` follow the sampling standard (``plans/sampling.md``), as in ``driver_window``:
+    ``n_samples`` starting states from the long base run shared by every mode, the
+    climatological noise scale, shared noise draws and ``eta_grid``. The driver's statistics
+    are then measured on every segment (``driver_*_per_state``) and their medians stored
+    under the legacy keys. A sampled run left on the default tag is written under the mode's
+    name instead, so it never replaces ``main``.
 
     ``n_ic``, ``n_seeds``, the window set and the noise windows all match
     ``driver_window`` so the curves overlay ``driver_window_main`` directly, and so mode 1
@@ -157,6 +169,14 @@ def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
     dt = cfg.dt
     windows = cfg.window_steps
     nwins = cfg.noise_windows
+    picks, scale, n_seg = {}, None, n_ic
+    if sampling != "legacy":
+        tag = sampling if tag == "main" else tag
+        picks = starting_states(sampling, n_samples, spacing_k, min_episode_days, placement,
+                                window_steps=discard + max(windows))
+        scale, n_seg, noise_levels = noise_scale(), n_samples, eta_grid
+        noise = [[shared_noise(i, s, max(nwins), len(scale)) for s in range(n_seeds)]
+                 for i in picks["snapshot_index"]]
     nM, nW, nEta, nWn = len(modes), len(windows), len(noise_levels), len(nwins)
 
     # One reference twin for the index layout; the per-mode twins are built in the loop.
@@ -164,13 +184,13 @@ def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
     theta_a_start = int(ref.spec.variables_range[0])
     slots_23 = (ref.idx_To1, ref.idx_psia1)
 
-    rel = np.full((nM, nW, n_ic), np.nan)
-    cond_J = np.full((nM, nW, n_ic), np.nan)
-    smin = np.full((nM, nW, n_ic), np.nan)
-    smax = np.full((nM, nW, n_ic), np.nan)
-    jrank = np.full((nM, nW, n_ic), np.nan)
-    c_hats = np.full((nM, nW, n_ic, 4), np.nan)
-    rel_noise = np.full((nM, nEta, nWn, n_ic, n_seeds), np.nan)
+    rel = np.full((nM, nW, n_seg), np.nan)
+    cond_J = np.full((nM, nW, n_seg), np.nan)
+    smin = np.full((nM, nW, n_seg), np.nan)
+    smax = np.full((nM, nW, n_seg), np.nan)
+    jrank = np.full((nM, nW, n_seg), np.nan)
+    c_hats = np.full((nM, nW, n_seg, 4), np.nan)
+    rel_noise = np.full((nM, nEta, nWn, n_seg, n_seeds), np.nan)
 
     # The driver's own statistics over the longest window, per mode. cv is the independent
     # variable this whole study is about; rms is what makes the amplitude confound
@@ -179,24 +199,39 @@ def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
     drv_mean = np.full(nM, np.nan)
     drv_std = np.full(nM, np.nan)
     drv_rms = np.full(nM, np.nan)
+    per_state = {k: np.full((nM, n_seg), np.nan) for k in ("mean", "std", "rms", "cv")}
 
     for im, k in enumerate(modes):
         idx = theta_a_start + k - 1
         drv_idx[im] = idx
         tw = TwinModels(cfg.eps, G_DRIVER, feature_idx=(idx, *slots_23))
         mask = obs_mask(tw.ndim, tw.spec.variables_range, cfg.obs)
-        x_attr = get_attractor_ic(tw, cfg, verbose=False)
-        seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        if sampling == "legacy":
+            x_attr = get_attractor_ic(tw, cfg, verbose=False)
+            seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        else:
+            seg_ics, seg_trajs = segments_from_states(tw, picks["states"], max(windows), dt,
+                                                      discard)
         td = time.time()
 
-        d = np.asarray(seg_trajs[0])[:, idx]
-        drv_mean[im], drv_std[im] = d.mean(), d.std()
-        drv_rms[im] = np.sqrt(np.mean(d ** 2))
+        if sampling == "legacy":
+            d = np.asarray(seg_trajs[0])[:, idx]
+            drv_mean[im], drv_std[im] = d.mean(), d.std()
+            drv_rms[im] = np.sqrt(np.mean(d ** 2))
+        else:
+            for j in range(n_seg):
+                d = np.asarray(seg_trajs[j])[:, idx]
+                per_state["mean"][im, j], per_state["std"][im, j] = d.mean(), d.std()
+                per_state["rms"][im, j] = np.sqrt(np.mean(d ** 2))
+            per_state["cv"][im] = per_state["std"][im] / np.abs(per_state["mean"][im])
+            drv_mean[im] = np.median(per_state["mean"][im])
+            drv_std[im] = np.median(per_state["std"][im])
+            drv_rms[im] = np.median(per_state["rms"][im])
 
         for iw, w in enumerate(windows):
-            for j in range(n_ic):
+            for j in range(n_seg):
                 r = recover(tw, seg_ics[j], seg_trajs[j][:w], dt, mask,
-                            eta=0.0, n_iters=lm_iters, whiten=whiten)
+                            eta=0.0, n_iters=lm_iters, whiten=whiten, scale=scale)
                 rel[im, iw, j] = r["rel_err"]
                 cond_J[im, iw, j] = r["cond_J"]
                 smin[im, iw, j] = r["smin"]
@@ -206,14 +241,19 @@ def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
 
         for ie, eta in enumerate(noise_levels):
             for jw, w in enumerate(nwins):
-                for j in range(n_ic):
+                for j in range(n_seg):
                     for s in range(n_seeds):
-                        # unique, reproducible noise stream per (mode, eta, window, IC, seed)
-                        ns = cfg.seed + ((((im * nEta + ie) * nWn + jw) * n_ic + j)
-                                         * n_seeds + s)
-                        r = recover(tw, seg_ics[j], seg_trajs[j][:w], dt, mask,
-                                    eta=eta, n_iters=lm_iters, noise_seed=ns,
-                                    whiten=whiten)
+                        if sampling == "legacy":
+                            # unique, reproducible noise stream per (mode, eta, window, IC, seed)
+                            ns = cfg.seed + ((((im * nEta + ie) * nWn + jw) * n_ic + j)
+                                             * n_seeds + s)
+                            r = recover(tw, seg_ics[j], seg_trajs[j][:w], dt, mask,
+                                        eta=eta, n_iters=lm_iters, noise_seed=ns,
+                                        whiten=whiten)
+                        else:
+                            r = recover(tw, seg_ics[j], seg_trajs[j][:w], dt, mask,
+                                        eta=eta, n_iters=lm_iters, whiten=whiten,
+                                        scale=scale, noise=noise[j][s])
                         rel_noise[im, ie, jw, j, s] = r["rel_err"]
 
         if verbose:
@@ -241,8 +281,10 @@ def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
         noise_windows=np.asarray(nwins),
         noise_window_days=np.asarray([steps_to_days(w) for w in nwins]),
         rel_err_noise=rel_noise,
-        eps=cfg.eps, obs=cfg.obs, dt=dt, seed=cfg.seed, n_ic=n_ic, n_seeds=n_seeds,
-        whiten=bool(whiten),
+        eps=cfg.eps, obs=cfg.obs, dt=dt, seed=cfg.seed, n_ic=n_seg, n_seeds=n_seeds,
+        whiten=bool(whiten), sampling=sampling, **sample_record(picks),
+        **({} if sampling == "legacy"
+           else {f"driver_{k}_per_state": v for k, v in per_state.items()}),
     )
     if verbose:
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s total)")

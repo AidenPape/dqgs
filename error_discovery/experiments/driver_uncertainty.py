@@ -139,6 +139,20 @@ from their own short-window levels. So T_o1 is the cheapest of the four to fit a
 most expensive at 89.7 d. A single-window comparison hides that entirely. ``bounds_table``
 prints these; ``fig_driver_uncertainty_bounds_<tag>.png`` draws them.
 
+**Sampled runs, 2026-10-01** (``passive``, ``active``, ``both``; ``plans/sampling.md``): 16
+starting states each from the 10,000-yr base run, spacing 139.7 yr, T = 30 d, whitened by the
+high-frequency climatological std -- a different weighting from ``main``'s within-window std,
+so the two are not comparable number for number. Medians over the 16 states: best relative
+s.e. per sigma_obs (all at 89.7 d, the longest window) and VIF there, const / theta_a1 / T_o1 /
+psi_a1:
+
+    passive  0.216 / 9.93 / 93.1 / 21.8     VIF 5.6e5 / 9.2e5 / 2.1e6 / 4.9e6
+    active   0.062 / 1.03 / 14.1 / 1.92     VIF 1.0e5 / 3.3e4 / 7.6e4 / 7.6e4
+    both     0.052 / 0.31 / 11.5 / 0.50     VIF 2.5e7 / 2.1e10 / 2.5e9 / 8.7e9
+
+Median cond(J_w) at 89.7 d: passive 4.9e5, active 6.3e4, both 1.0e7. One run per mode, one
+base run; the noise scale is provisional until the fitting session.
+
 Results -> ``results/driver_uncertainty_<tag>.npz``.
 """
 
@@ -148,11 +162,14 @@ import time
 import numpy as np
 
 from .. import figstyle
-from ..attractor import get_attractor_ic, build_segments
-from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..attractor import get_attractor_ic, build_segments, segments_from_states
+from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+                      MIN_EPISODE_DAYS)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
 from ..discovery import residual_jacobian, coefficient_uncertainty
+from ..sampling import (starting_states, sample_record, noise_scale, is_sampled,
+                        sampling_line, whiten_note)
 
 # ``driver_window``'s single drivers, duplicated rather than imported -- studies do not import
 # each other. Slots index features(x) = (1, theta_a1, T_o1, psi_a1). Its ``mixed`` driver is
@@ -180,8 +197,18 @@ def own(quantity, c_true_row, relative=False):
     return q / abs(np.asarray(c_true_row)[k]) if relative else q
 
 
-def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, whiten=True, verbose=True):
+def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, whiten=True, verbose=True,
+        sampling="legacy", n_samples=N_SAMPLES, spacing_k=SPACING_K,
+        min_episode_days=MIN_EPISODE_DAYS, placement="onset", discard=0):
     """Per-coefficient uncertainty of the Jacobian at c_true, once per driver and window.
+
+    ``sampling="legacy"`` is the original design below: ``n_ic`` segments cut from one truth
+    run that starts at the 800k-step state, whitened by the within-window std. ``"passive"``,
+    ``"active"`` or ``"both"`` follow the sampling standard (``plans/sampling.md``):
+    ``n_samples`` starting states from the long base run (knobs ``spacing_k``,
+    ``min_episode_days``, ``placement``, ``discard``, see ``sampling.starting_states``), shared
+    by every driver, whitened by the high-frequency climatological std. A sampled run left on
+    the default tag is written under the mode's name instead, so it never replaces ``main``.
 
     ``n_ic`` and the window set match ``driver_window`` so the curves overlay
     ``driver_window_main`` directly. There is no noise sweep and no LM budget: the Jacobian is
@@ -198,31 +225,41 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, whiten=True, verbose=True):
     dt = cfg.dt
     windows = cfg.window_steps
     nD, nW = len(drivers), len(windows)
+    picks, scale, n_seg = {}, None, n_ic
+    if sampling != "legacy":
+        tag = sampling if tag == "main" else tag
+        picks = starting_states(sampling, n_samples, spacing_k, min_episode_days, placement,
+                                window_steps=discard + max(windows))
+        scale, n_seg = noise_scale(), n_samples
 
-    per_coeff = (nD, nW, n_ic, 4)
+    per_coeff = (nD, nW, n_seg, 4)
     col_norm = np.full(per_coeff, np.nan)
     se_unit = np.full(per_coeff, np.nan)
     vif = np.full(per_coeff, np.nan)
     align = np.full(per_coeff, np.nan)
     sigma = np.full(per_coeff, np.nan)
-    cond_J = np.full((nD, nW, n_ic), np.nan)
-    smin = np.full((nD, nW, n_ic), np.nan)
-    smax = np.full((nD, nW, n_ic), np.nan)
-    jrank = np.full((nD, nW, n_ic), np.nan)
+    cond_J = np.full((nD, nW, n_seg), np.nan)
+    smin = np.full((nD, nW, n_seg), np.nan)
+    smax = np.full((nD, nW, n_seg), np.nan)
+    jrank = np.full((nD, nW, n_seg), np.nan)
     c_trues = np.zeros((nD, 4))
 
     for idr, name in enumerate(drivers):
         tw = TwinModels(cfg.eps, DRIVERS[name])
         mask = obs_mask(tw.ndim, tw.spec.variables_range, cfg.obs)
-        x_attr = get_attractor_ic(tw, cfg, verbose=False)
-        seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        if sampling == "legacy":
+            x_attr = get_attractor_ic(tw, cfg, verbose=False)
+            seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        else:
+            seg_ics, seg_trajs = segments_from_states(tw, picks["states"], max(windows), dt,
+                                                      discard)
         c_trues[idr] = np.asarray(tw.c_true)
         td = time.time()
 
         for iw, w in enumerate(windows):
-            for k in range(n_ic):
+            for k in range(n_seg):
                 J = residual_jacobian(tw, seg_ics[k], seg_trajs[k][:w], dt, mask,
-                                      whiten=whiten)
+                                      whiten=whiten, scale=scale)
                 u = coefficient_uncertainty(J)
                 col_norm[idr, iw, k] = u["col_norm"]
                 se_unit[idr, iw, k] = u["se_unit"]
@@ -254,8 +291,8 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, whiten=True, verbose=True):
         window_days=np.asarray([steps_to_days(w) for w in windows]),
         col_norm=col_norm, se_unit=se_unit, vif=vif, align=align, sigma=sigma,
         cond_J=cond_J, smin=smin, smax=smax, jrank=jrank,
-        eps=cfg.eps, obs=cfg.obs, dt=dt, seed=cfg.seed, n_ic=n_ic,
-        whiten=bool(whiten),
+        eps=cfg.eps, obs=cfg.obs, dt=dt, seed=cfg.seed, n_ic=n_seg,
+        whiten=bool(whiten), sampling=sampling, **sample_record(picks),
     )
     if verbose:
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s total)")
@@ -292,8 +329,9 @@ def figure(tag="main"):
     names = [str(n) for n in d["drivers"]]
     wd = d["window_days"]
     c_true = d["c_true"]
-    wh = bool(d["whiten"]) if "whiten" in d.files else False
-    wnote = "whitened residual (1/std per channel)" if wh else "unwhitened residual"
+    wnote = whiten_note(d)
+    unit = "starting states" if is_sampled(d) else "segments"
+    n_seg = d["se_unit"].shape[2]
 
     fig, (ax, axb, axc) = plt.subplots(1, 3, figsize=(15.0, 4.4))
     colors = plt.get_cmap("tab10").colors
@@ -310,7 +348,7 @@ def figure(tag="main"):
     ax.set_xlabel("optimisation window  [days]")
     ax.set_ylabel(r"$\sigma_{\hat c_k}/(|c_k|\,\sigma_{\rm obs})$")
     ax.set_title("(a)  uncertainty of the driver's own coefficient\n"
-                 rf"{wnote}" "\n" r"band = segment range; $\star$ = best window",
+                 rf"{wnote}" "\n" rf"band = range over {unit}; $\star$ = best window",
                  fontsize=9.5, loc="left")
     ax.legend(frameon=False, fontsize=8, title="driver $g(x)$", title_fontsize=8)
 
@@ -339,11 +377,12 @@ def figure(tag="main"):
     axc.set_ylim(0, 1.02)
     axc.set_xlabel("optimisation window  [days]")
     axc.set_ylabel(r"$|\langle v_{\min},e_k\rangle|$")
-    axc.set_title("(c)  mechanism: overlap with the worst-determined singular\n"
-                  "direction; bands = the amplitude-matched pair, 3 segments",
+    axc.set_title("(c)  mechanism: overlap with the worst-determined\n"
+                  "singular direction; bands = the amplitude-matched\n"
+                  f"pair, {n_seg} {unit}",
                   fontsize=9.5, loc="left")
 
-    fig.tight_layout()
+    figstyle.finish(fig, sampling_line(d))
     out = os.path.join(RESULTS_DIR, f"fig_driver_uncertainty_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out, _draw_bounds(plt, d, tag)]
@@ -370,7 +409,7 @@ def _draw_bounds(plt, d, tag):
     c_true = d["c_true"]
     wh = bool(d["whiten"]) if "whiten" in d.files else False
     jsym = "J_w" if wh else "J"
-    wnote = "whitened residual (1/std per channel)" if wh else "unwhitened residual"
+    wnote = whiten_note(d)
     colors = plt.get_cmap("tab10").colors
 
     fig, axes = plt.subplots(1, 4, figsize=(17.0, 4.3), sharey=True)
@@ -410,9 +449,11 @@ def _draw_bounds(plt, d, tag):
                    label=r"$\sigma_{\hat c_k}$  (all four fitted)")],
         frameon=False, fontsize=8, ncol=3, loc="lower center")
 
+    line = sampling_line(d)
     fig.suptitle(rf"nested bounds on the driver's own coefficient; {wnote}. "
                  rf"grey band $=$ cond$({jsym})$, coloured band $=\sqrt{{\rm VIF}}$, "
-                 rf"the price of not knowing the form", fontsize=9.5)
+                 rf"the price of not knowing the form" + (f"\n{line}" if line else ""),
+                 fontsize=9.5)
     fig.tight_layout(rect=(0, 0.06, 1, 0.94))
     out = os.path.join(RESULTS_DIR, f"fig_driver_uncertainty_bounds_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
@@ -447,6 +488,7 @@ def bounds_table(tag="main", window_days=89.7):
     names = [str(n) for n in d["drivers"]]
     wd, c_true = d["window_days"], d["c_true"]
     n_ic = d["se_unit"].shape[2]
+    unit = "starting states" if is_sampled(d) else "segments"
     b = int(np.argmin(np.abs(wd - window_days)))
 
     rows = np.zeros((len(names), 6))
@@ -464,12 +506,12 @@ def bounds_table(tag="main", window_days=89.7):
 
     cols = ("cond(J)", "1/sigma_max", "1/||J e_k||", "se_k", "1/sigma_min", "sqrt(VIF)")
     print(f"window {wd[b]:.1f} d, per unit sigma_obs, relative to |c_k|, "
-          f"median of {n_ic} segments")
+          f"median of {n_ic} {unit}")
     print(f"{'driver':<9s}" + "".join(f"{c:>13s}" for c in cols))
     for i, nm in enumerate(names):
         print(f"{nm:<9s}" + "".join(f"{v:13.3e}" for v in rows[i, :5])
               + f"{rows[i, 5]:13.0f}")
     print(f"nesting 1/smax <= 1/||Je_k|| <= se_k <= 1/smin: "
           f"{'holds' if _nesting_holds(d) else 'VIOLATED'} across all "
-          f"{len(wd)} windows x {len(names)} drivers x {n_ic} segments")
+          f"{len(wd)} windows x {len(names)} drivers x {n_ic} {unit}")
     return rows

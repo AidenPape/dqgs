@@ -91,11 +91,14 @@ import time
 import numpy as np
 
 from .. import figstyle
-from ..attractor import get_attractor_ic, build_segments
-from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..attractor import get_attractor_ic, build_segments, segments_from_states
+from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+                      MIN_EPISODE_DAYS, ETA_GRID)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
 from ..discovery import recover
+from ..sampling import (starting_states, sample_record, noise_scale, shared_noise,
+                        sampling_line, whiten_note)
 
 # g_coeffs indexes TwinModels.features(x) = (1, theta_a1, T_o1, psi_a1). "const" carries
 # no state dependence at all -- the error is just eps*(E x) -- which makes it the baseline
@@ -112,8 +115,18 @@ ALL_DRIVERS = tuple(DRIVERS)
 
 
 def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
-        noise_levels=(1e-4, 1e-3), whiten=True, verbose=True):
+        noise_levels=(1e-4, 1e-3), whiten=True, verbose=True,
+        sampling="legacy", n_samples=N_SAMPLES, spacing_k=SPACING_K,
+        min_episode_days=MIN_EPISODE_DAYS, placement="onset", discard=0, eta_grid=ETA_GRID):
     """Sweep the optimisation window once per driver, noiseless and under noise.
+
+    ``sampling="legacy"`` is the original design below. ``"passive"``, ``"active"`` or
+    ``"both"`` follow the sampling standard (``plans/sampling.md``): ``n_samples`` starting
+    states from the long base run, shared by every driver; noise and whitening scaled by the
+    high-frequency climatological std; one standard-normal draw per (state, seed) reused for
+    every window, level and driver; levels ``eta_grid`` in place of ``noise_levels``. Those
+    noise choices are provisional until the fitting session. A sampled run left on the default
+    tag is written under the mode's name instead, so it never replaces ``main``.
 
     ``n_ic`` and ``n_seeds`` are trimmed relative to the lead-time study (4 and 3) because
     this runs the whole sweep five times over; the window set and the noise windows are
@@ -134,30 +147,42 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
     dt = cfg.dt
     windows = cfg.window_steps
     nwins = cfg.noise_windows
+    picks, scale, n_seg = {}, None, n_ic
+    if sampling != "legacy":
+        tag = sampling if tag == "main" else tag
+        picks = starting_states(sampling, n_samples, spacing_k, min_episode_days, placement,
+                                window_steps=discard + max(windows))
+        scale, n_seg, noise_levels = noise_scale(), n_samples, eta_grid
+        noise = [[shared_noise(i, s, max(nwins), len(scale)) for s in range(n_seeds)]
+                 for i in picks["snapshot_index"]]
     nD, nW, nEta, nWn = len(drivers), len(windows), len(noise_levels), len(nwins)
 
-    rel = np.full((nD, nW, n_ic), np.nan)
-    cond_J = np.full((nD, nW, n_ic), np.nan)
-    smin = np.full((nD, nW, n_ic), np.nan)
-    smax = np.full((nD, nW, n_ic), np.nan)
-    jrank = np.full((nD, nW, n_ic), np.nan)
-    c_hats = np.full((nD, nW, n_ic, 4), np.nan)
-    rel_noise = np.full((nD, nEta, nWn, n_ic, n_seeds), np.nan)
+    rel = np.full((nD, nW, n_seg), np.nan)
+    cond_J = np.full((nD, nW, n_seg), np.nan)
+    smin = np.full((nD, nW, n_seg), np.nan)
+    smax = np.full((nD, nW, n_seg), np.nan)
+    jrank = np.full((nD, nW, n_seg), np.nan)
+    c_hats = np.full((nD, nW, n_seg, 4), np.nan)
+    rel_noise = np.full((nD, nEta, nWn, n_seg, n_seeds), np.nan)
     c_trues = np.full((nD, 4), np.nan)
 
     for idr, name in enumerate(drivers):
         g = DRIVERS[name]
         tw = TwinModels(cfg.eps, g)
         mask = obs_mask(tw.ndim, tw.spec.variables_range, cfg.obs)
-        x_attr = get_attractor_ic(tw, cfg, verbose=False)
-        seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        if sampling == "legacy":
+            x_attr = get_attractor_ic(tw, cfg, verbose=False)
+            seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        else:
+            seg_ics, seg_trajs = segments_from_states(tw, picks["states"], max(windows), dt,
+                                                      discard)
         c_trues[idr] = np.asarray(tw.c_true)
         td = time.time()
 
         for iw, w in enumerate(windows):
-            for k in range(n_ic):
+            for k in range(n_seg):
                 r = recover(tw, seg_ics[k], seg_trajs[k][:w], dt, mask,
-                            eta=0.0, n_iters=lm_iters, whiten=whiten)
+                            eta=0.0, n_iters=lm_iters, whiten=whiten, scale=scale)
                 rel[idr, iw, k] = r["rel_err"]
                 cond_J[idr, iw, k] = r["cond_J"]
                 smin[idr, iw, k] = r["smin"]
@@ -167,14 +192,19 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
 
         for ie, eta in enumerate(noise_levels):
             for jw, w in enumerate(nwins):
-                for k in range(n_ic):
+                for k in range(n_seg):
                     for s in range(n_seeds):
-                        # unique, reproducible noise stream per (driver, eta, window, IC, seed)
-                        ns = cfg.seed + ((((idr * nEta + ie) * nWn + jw) * n_ic + k)
-                                         * n_seeds + s)
-                        r = recover(tw, seg_ics[k], seg_trajs[k][:w], dt, mask,
-                                    eta=eta, n_iters=lm_iters, noise_seed=ns,
-                                    whiten=whiten)
+                        if sampling == "legacy":
+                            # unique, reproducible noise stream per (driver, eta, window, IC, seed)
+                            ns = cfg.seed + ((((idr * nEta + ie) * nWn + jw) * n_ic + k)
+                                             * n_seeds + s)
+                            r = recover(tw, seg_ics[k], seg_trajs[k][:w], dt, mask,
+                                        eta=eta, n_iters=lm_iters, noise_seed=ns,
+                                        whiten=whiten)
+                        else:
+                            r = recover(tw, seg_ics[k], seg_trajs[k][:w], dt, mask,
+                                        eta=eta, n_iters=lm_iters, whiten=whiten,
+                                        scale=scale, noise=noise[k][s])
                         rel_noise[idr, ie, jw, k, s] = r["rel_err"]
 
         if verbose:
@@ -198,8 +228,8 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
         noise_windows=np.asarray(nwins),
         noise_window_days=np.asarray([steps_to_days(w) for w in nwins]),
         rel_err_noise=rel_noise,
-        eps=cfg.eps, obs=cfg.obs, dt=dt, seed=cfg.seed, n_ic=n_ic, n_seeds=n_seeds,
-        whiten=bool(whiten),
+        eps=cfg.eps, obs=cfg.obs, dt=dt, seed=cfg.seed, n_ic=n_seg, n_seeds=n_seeds,
+        whiten=bool(whiten), sampling=sampling, **sample_record(picks),
     )
     if verbose:
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s total)")
@@ -230,7 +260,7 @@ def figure(tag="main", eta_index=0):
     etas = d["noise_levels"]
     wh = bool(d["whiten"]) if "whiten" in d.files else False
     jsym = r"J_w" if wh else "J"
-    wnote = "whitened residual (1/std per channel)" if wh else "unwhitened residual"
+    wnote = whiten_note(d)
 
     fig, (ax, axb) = plt.subplots(1, 2, figsize=(11.4, 4.4))
     colors = plt.get_cmap("tab10").colors
@@ -261,7 +291,7 @@ def figure(tag="main", eta_index=0):
                   fontsize=9.5, loc="left")
     axb.legend(frameon=False, fontsize=8)
 
-    fig.tight_layout()
+    figstyle.finish(fig, sampling_line(d))
     out = os.path.join(RESULTS_DIR, f"fig_driver_window_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]

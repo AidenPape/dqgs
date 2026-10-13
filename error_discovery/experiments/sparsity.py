@@ -39,11 +39,13 @@ import time
 import numpy as np
 import jax.numpy as jnp
 
-from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+                      MIN_EPISODE_DAYS, ETA_GRID)
 from ..models import TwinModels, obs_mask
 from ..discovery import rollout, recover
 from .. import figstyle
-from ..attractor import get_attractor_ic, build_segments
+from ..attractor import get_attractor_ic, build_segments, segments_from_states
+from ..sampling import starting_states, sample_record, noise_scale, shared_noise
 from ..figstyle import DPI, LBL_BBOX
 
 OBS_KINDS = ("full", "atmos", "ocean", "temp")
@@ -74,7 +76,19 @@ def oracle_floor(tw, x_attr, dt, n_samples=3000):
 
 def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
         noise_window=1280, noise_levels=(0.0, 1e-4, 2e-4, 3e-4, 5e-4, 1e-3),
-        windows=(320, 640, 1280, 2560), eta_fix=3e-4, whiten=True, verbose=True):
+        windows=(320, 640, 1280, 2560), eta_fix=3e-4, whiten=True, verbose=True,
+        sampling="legacy", n_samples=N_SAMPLES, spacing_k=SPACING_K,
+        min_episode_days=MIN_EPISODE_DAYS, placement="onset", discard=0, eta_grid=ETA_GRID):
+    """Recovery against noise and against window, for each observation mask.
+
+    ``sampling="legacy"`` is the original design. ``"passive"``, ``"active"`` or ``"both"``
+    follow the sampling standard (``plans/sampling.md``): ``n_samples`` starting states from
+    the long base run; the climatological noise scale; one standard-normal draw per
+    (state, seed) shared by every mask, level and window; panel (a)'s levels ``(0,) + eta_grid``
+    in place of ``noise_levels``; and the oracle floor computed from every starting state
+    (``oracle_floor_per_state``, median under ``oracle_floor``). A sampled run left on the
+    default tag is written under the mode's name instead.
+    """
     t0 = time.time()
     cfg = ExperimentConfig()
     cfg.n_ic = n_ic
@@ -82,9 +96,22 @@ def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
     tw = TwinModels(cfg.eps, cfg.g_coeffs)
     dt = cfg.dt
 
-    x_attr = get_attractor_ic(tw, cfg, verbose)
-    seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
-    floor = oracle_floor(tw, x_attr, dt)
+    picks, scale = {}, None
+    if sampling == "legacy":
+        x_attr = get_attractor_ic(tw, cfg, verbose)
+        seg_ics, seg_trajs = build_segments(tw, cfg, x_attr)
+        floor = oracle_floor(tw, x_attr, dt)
+    else:
+        tag = sampling if tag == "sparsity" else tag
+        max_w = max(cfg.window_steps)
+        picks = starting_states(sampling, n_samples, spacing_k, min_episode_days, placement,
+                                window_steps=discard + max_w)
+        seg_ics, seg_trajs = segments_from_states(tw, picks["states"], max_w, dt, discard)
+        scale, n_ic, noise_levels = noise_scale(), n_samples, (0.0,) + tuple(eta_grid)
+        noise = [[shared_noise(i, s, max_w, tw.ndim) for s in range(n_seeds)]
+                 for i in picks["snapshot_index"]]
+        floors = np.asarray([oracle_floor(tw, x, dt) for x in seg_ics])
+        floor = float(np.median(floors))
     if verbose:
         print(f"[setup] obs={OBS_KINDS}  oracle (exact-tendency) floor={floor:.2e}")
 
@@ -101,18 +128,26 @@ def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
             for k in range(n_ic):
                 Y = seg_trajs[k][:noise_window]
                 for s in range(n_seeds):
-                    # unique, reproducible noise stream per (obs, eta, IC, seed)
-                    ns = cfg.seed + (((io * nEta + ie) * n_ic + k) * n_seeds + s)
-                    r = recover(tw, seg_ics[k], Y, dt, mask, eta=eta,
-                                n_iters=lm_iters, noise_seed=ns, whiten=whiten)
+                    if sampling == "legacy":
+                        # unique, reproducible noise stream per (obs, eta, IC, seed)
+                        ns = cfg.seed + (((io * nEta + ie) * n_ic + k) * n_seeds + s)
+                        r = recover(tw, seg_ics[k], Y, dt, mask, eta=eta,
+                                    n_iters=lm_iters, noise_seed=ns, whiten=whiten)
+                    else:
+                        r = recover(tw, seg_ics[k], Y, dt, mask, eta=eta, n_iters=lm_iters,
+                                    whiten=whiten, scale=scale, noise=noise[k][s])
                     rel_noise[io, ie, k, s] = r["rel_err"]
         for jw, w in enumerate(windows):
             for k in range(n_ic):
                 Y = seg_trajs[k][:w]
                 for s in range(n_seeds):
-                    ns = 10 ** 6 + cfg.seed + (((io * nW + jw) * n_ic + k) * n_seeds + s)
-                    r = recover(tw, seg_ics[k], Y, dt, mask, eta=eta_fix,
-                                n_iters=lm_iters, noise_seed=ns, whiten=whiten)
+                    if sampling == "legacy":
+                        ns = 10 ** 6 + cfg.seed + (((io * nW + jw) * n_ic + k) * n_seeds + s)
+                        r = recover(tw, seg_ics[k], Y, dt, mask, eta=eta_fix,
+                                    n_iters=lm_iters, noise_seed=ns, whiten=whiten)
+                    else:
+                        r = recover(tw, seg_ics[k], Y, dt, mask, eta=eta_fix, n_iters=lm_iters,
+                                    whiten=whiten, scale=scale, noise=noise[k][s])
                     rel_window[io, jw, k, s] = r["rel_err"]
         if verbose:
             mn = np.nanmedian(rel_noise[io], axis=(1, 2))
@@ -133,6 +168,8 @@ def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
         rel_window=rel_window,
         oracle_floor=floor,
         eps=cfg.eps, g_coeffs=np.asarray(cfg.g_coeffs), dt=dt,
+        sampling=sampling, **sample_record(picks),
+        **({} if sampling == "legacy" else {"oracle_floor_per_state": floors}),
     )
     if verbose:
         print(f"[done]  wrote {out}  ({time.time() - t0:.1f}s)")
