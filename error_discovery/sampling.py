@@ -258,6 +258,9 @@ def regime_labels(p_active, cutoff=REGIME_CUTOFF):
     return lab
 
 
+REGIME_NAMES = {1: "active", -1: "passive", 0: "neither"}     # regime_labels' codes
+
+
 def episodes(labels, min_len):
     """Regime episodes as ``[(label, start, end), ...]``, ``end`` exclusive.
 
@@ -435,6 +438,8 @@ def starting_states(mode, n=N_SAMPLES, spacing_k=SPACING_K, min_episode_days=MIN
                     directory=RESULTS_DIR):
     """The first ``n`` of ``available_picks``, with their states and the recipe, as a dict.
 
+    ``regime`` is each state's label at its own snapshot (``REGIME_NAMES``): the mode itself
+    for ``passive`` / ``active``, and whichever regime a state happens to sit in for ``both``.
     Raises ``ValueError`` naming how many were found if the record holds fewer than ``n``.
     """
     picks, spacing, reg = available_picks(mode, spacing_k, min_episode_days, placement,
@@ -445,8 +450,10 @@ def starting_states(mode, n=N_SAMPLES, spacing_k=SPACING_K, min_episode_days=MIN
                          f"{spacing * dd / DAYS_PER_YEAR:,.1f} yr; {n} needed. Extend the base "
                          f"run or lower spacing_k.")
     idx = np.asarray(picks[:n])
+    lab = regime_labels(reg["p_active"], float(reg["cutoff"]))[idx]
     return dict(states=load_snapshots(idx, directory=directory),
                 sampling=mode, snapshot_index=idx, start_year=idx * dd / DAYS_PER_YEAR,
+                regime=np.asarray([REGIME_NAMES[int(v)] for v in lab]),
                 n_samples=n, spacing_k=spacing_k, spacing_years=spacing * dd / DAYS_PER_YEAR,
                 tau_max_days=float(np.max(reg["tau_int"])) * dd,
                 min_episode_days=min_episode_days, placement=placement,

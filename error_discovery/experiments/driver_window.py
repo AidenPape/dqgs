@@ -117,7 +117,8 @@ ALL_DRIVERS = tuple(DRIVERS)
 def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
         noise_levels=(1e-4, 1e-3), whiten=True, verbose=True,
         sampling="legacy", n_samples=N_SAMPLES, spacing_k=SPACING_K,
-        min_episode_days=MIN_EPISODE_DAYS, placement="onset", discard=0, eta_grid=ETA_GRID):
+        min_episode_days=MIN_EPISODE_DAYS, placement="onset", discard=0, eta_grid=ETA_GRID,
+        noiseless=True, noise_on_all_windows=False):
     """Sweep the optimisation window once per driver, noiseless and under noise.
 
     ``sampling="legacy"`` is the original design below. ``"passive"``, ``"active"`` or
@@ -127,6 +128,10 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
     every window, level and driver; levels ``eta_grid`` in place of ``noise_levels``. Those
     noise choices are provisional until the fitting session. A sampled run left on the default
     tag is written under the mode's name instead, so it never replaces ``main``.
+
+    ``noiseless=False`` skips the noiseless sweep (its arrays stay NaN), for a noisy run whose
+    noiseless fits were already made. ``noise_on_all_windows`` fits under noise on every window
+    of the sweep instead of the shorter ``cfg.noise_windows`` list.
 
     ``n_ic`` and ``n_seeds`` are trimmed relative to the lead-time study (4 and 3) because
     this runs the whole sweep five times over; the window set and the noise windows are
@@ -146,7 +151,7 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
     cfg.n_ic = n_ic
     dt = cfg.dt
     windows = cfg.window_steps
-    nwins = cfg.noise_windows
+    nwins = windows if noise_on_all_windows else cfg.noise_windows
     picks, scale, n_seg = {}, None, n_ic
     if sampling != "legacy":
         tag = sampling if tag == "main" else tag
@@ -163,7 +168,21 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
     smax = np.full((nD, nW, n_seg), np.nan)
     jrank = np.full((nD, nW, n_seg), np.nan)
     c_hats = np.full((nD, nW, n_seg, 4), np.nan)
+    # the rest of what recover returns for a noiseless fit (plans/fitting-experiments.md,
+    # Stage 0b): per-coefficient uncertainty at c_hat, and how far LM got
+    per_coef = {k: np.full((nD, nW, n_seg, 4), np.nan)
+                for k in ("col_norm", "se_unit", "vif", "align")}
+    cost0 = np.full((nD, nW, n_seg), np.nan)
+    cost_final = np.full((nD, nW, n_seg), np.nan)
+    n_iters = np.full((nD, nW, n_seg), -1)
     rel_noise = np.full((nD, nEta, nWn, n_seg, n_seeds), np.nan)
+    # per noisy fit, the same fields as the noiseless fits (plans/fitting-experiments.md,
+    # Stage 1); saved under the noiseless name plus "_noise"
+    noisy_shape = (nD, nEta, nWn, n_seg, n_seeds)
+    noisy = {k: np.full(noisy_shape + (4,), np.nan) for k in ("c_hat", *per_coef)}
+    noisy.update({k: np.full(noisy_shape, np.nan)
+                  for k in ("cond_J", "smin", "smax", "rank", "cost0", "cost_final")})
+    n_iters_noise = np.full(noisy_shape, -1)
     c_trues = np.full((nD, 4), np.nan)
 
     for idr, name in enumerate(drivers):
@@ -179,7 +198,7 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
         c_trues[idr] = np.asarray(tw.c_true)
         td = time.time()
 
-        for iw, w in enumerate(windows):
+        for iw, w in enumerate(windows if noiseless else ()):
             for k in range(n_seg):
                 r = recover(tw, seg_ics[k], seg_trajs[k][:w], dt, mask,
                             eta=0.0, n_iters=lm_iters, whiten=whiten, scale=scale)
@@ -189,6 +208,11 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
                 smax[idr, iw, k] = r["smax"]
                 jrank[idr, iw, k] = r["rank"]
                 c_hats[idr, iw, k] = r["c_hat"]
+                for key, arr in per_coef.items():
+                    arr[idr, iw, k] = r[key]
+                cost0[idr, iw, k] = r["cost0"]
+                cost_final[idr, iw, k] = r["cost_final"]
+                n_iters[idr, iw, k] = len(r["cost_hist"]) - 1
 
         for ie, eta in enumerate(noise_levels):
             for jw, w in enumerate(nwins):
@@ -206,16 +230,24 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
                                         eta=eta, n_iters=lm_iters, whiten=whiten,
                                         scale=scale, noise=noise[k][s])
                         rel_noise[idr, ie, jw, k, s] = r["rel_err"]
+                        for key, arr in noisy.items():
+                            arr[idr, ie, jw, k, s] = r[key]
+                        n_iters_noise[idr, ie, jw, k, s] = len(r["cost_hist"]) - 1
 
-        if verbose:
+        if verbose and noiseless:
             cj = np.nanmedian(cond_J[idr], axis=1)
             print(f"[{name:8s}] g={g}  best cond(J)={cj.min():.2e} at "
                   f"{steps_to_days(windows[int(np.argmin(cj))]):.1f} d   "
                   f"noiseless rel_err med={np.nanmedian(rel[idr]):.2e}   "
                   f"[{time.time() - td:.0f}s]")
+        elif verbose:
+            print(f"[{name:8s}] g={g}  noisy rel_err med={np.nanmedian(rel_noise[idr]):.2e}   "
+                  f"[{time.time() - td:.0f}s]")
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
     out = os.path.join(RESULTS_DIR, f"driver_window_{tag}.npz")
+    saved_name = {"c_hat": "c_hats", "rank": "jrank"}       # as the noiseless arrays are named
+    noisy_out = {f"{saved_name.get(k, k)}_noise": v for k, v in noisy.items()}
     np.savez(
         out,
         drivers=np.asarray(list(drivers)),
@@ -224,10 +256,12 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
         windows=np.asarray(windows),
         window_days=np.asarray([steps_to_days(w) for w in windows]),
         rel_err=rel, cond_J=cond_J, smin=smin, smax=smax, jrank=jrank, c_hats=c_hats,
+        cost0=cost0, cost_final=cost_final, n_iters=n_iters, lm_iters=lm_iters, **per_coef,
         noise_levels=np.asarray(noise_levels),
         noise_windows=np.asarray(nwins),
         noise_window_days=np.asarray([steps_to_days(w) for w in nwins]),
-        rel_err_noise=rel_noise,
+        rel_err_noise=rel_noise, n_iters_noise=n_iters_noise, **noisy_out,
+        noiseless=bool(noiseless),
         eps=cfg.eps, obs=cfg.obs, dt=dt, seed=cfg.seed, n_ic=n_seg, n_seeds=n_seeds,
         whiten=bool(whiten), sampling=sampling, **sample_record(picks),
     )

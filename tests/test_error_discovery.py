@@ -129,6 +129,19 @@ def test_lm_monotone(tw, attractor):
     assert np.all(np.diff(hist) <= 1e-12)
 
 
+def test_lm_qr_matches_normal_equations():
+    """The same damped step solved two ways (``solver``): on a well-conditioned linear
+    problem the two fits agree to rounding and reach the solution."""
+    rng = np.random.default_rng(0)
+    A = jnp.asarray(rng.standard_normal((200, 4)))
+    c_star = jnp.asarray([0.3, -1.0, 0.1, 2.0])
+    b = A @ c_star
+    fits = [np.asarray(D.lm_fit(lambda c: A @ c - b, jnp.zeros(4), n_iters=40, solver=s)[0])
+            for s in ("normal", "qr")]
+    assert np.max(np.abs(fits[0] - fits[1])) < 1e-10
+    assert np.max(np.abs(fits[1] - np.asarray(c_star))) < 1e-8
+
+
 # ---- 6. end-to-end noiseless recovery at an intermediate window ----------- #
 def test_recovery_intermediate_window(tw, attractor):
     Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 1280))  # ~14 d

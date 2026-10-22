@@ -77,11 +77,17 @@ def make_residual(tw, x0, Y_obs, dt, oidx, wchan=None):
     return resid
 
 
-def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5):
+def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5, solver="normal"):
     """Levenberg--Marquardt least squares; returns (c_hat, J_final, cost_hist).
     ``J_final`` is the residual Jacobian evaluated at the converged coefficients, so
     its SVD gives the local conditioning of the parameter -> observation map at the
-    solution (at the noiseless twin truth the Gauss--Newton Hessian J^T J is exact)."""
+    solution (at the noiseless twin truth the Gauss--Newton Hessian J^T J is exact).
+
+    ``solver`` picks how each damped step, min |J p + r|^2 + lam |d p|^2 (d = column norms of
+    J), is solved. ``"normal"`` forms J^T J + lam D, which squares cond(J). ``"qr"`` factors
+    J = Q R once per iteration and solves each try as least squares on R stacked over
+    sqrt(lam) diag(d), so cond(J) is not squared (More 1978; Nocedal & Wright 2006 ch. 10).
+    Same step mathematically; ``plans/fitting-experiments.md`` decision 4c."""
     resid_j = jax.jit(resid)
     jac_j = jax.jit(jax.jacfwd(resid))
 
@@ -93,17 +99,27 @@ def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5):
     for _ in range(n_iters):
         J = np.asarray(jac_j(c))
         rcn = np.asarray(rc)
-        JtJ = J.T @ J
-        Jtr = J.T @ rcn
-        D = np.diag(np.maximum(np.diag(JtJ), 1e-30))
+        if solver == "qr":
+            Q, R = np.linalg.qr(J)
+            qtr = Q.T @ rcn
+            dcol = np.sqrt(np.maximum((J ** 2).sum(axis=0), 1e-30))
+        else:
+            JtJ = J.T @ J
+            Jtr = J.T @ rcn
+            D = np.diag(np.maximum(np.diag(JtJ), 1e-30))
         # try a step; back off (increase damping) until it decreases the cost
         accepted = False
         for _try in range(8):
-            try:
-                step = np.linalg.solve(JtJ + lam * D, -Jtr)
-            except np.linalg.LinAlgError:
-                lam *= lam_up
-                continue
+            if solver == "qr":
+                A = np.vstack([R, np.sqrt(lam) * np.diag(dcol)])
+                b = np.concatenate([-qtr, np.zeros(len(dcol))])
+                step = np.linalg.lstsq(A, b, rcond=None)[0]
+            else:
+                try:
+                    step = np.linalg.solve(JtJ + lam * D, -Jtr)
+                except np.linalg.LinAlgError:
+                    lam *= lam_up
+                    continue
             c_new = c + jnp.asarray(step)
             r_new = resid_j(c_new)
             cost_new = float(0.5 * r_new @ r_new)
@@ -218,7 +234,7 @@ def add_obs_noise(Y, oidx, eta, rng):
 
 
 def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=False,
-            scale=None, noise=None):
+            scale=None, noise=None, solver="normal"):
     """Run one discovery (optionally with observation noise). Returns a dict. With
     ``whiten=True`` each observed channel's residual is divided by that channel's
     climatological standard deviation, the assumed per-channel observation-error scale
@@ -229,7 +245,8 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
     ``noise_seed``. The sampling standard (``plans/sampling.md``) instead passes ``scale``, one
     std per state variable (the high-frequency climatological std), and ``noise``, a standard
     normal array of at least ``len(Y_true)`` rows and one column per state variable, shared
-    across windows, noise levels and drivers (common random numbers)."""
+    across windows, noise levels and drivers (common random numbers). ``solver`` is
+    ``lm_fit``'s."""
     oidx = obs_indices(mask)
     if scale is None:
         rng = np.random.default_rng(noise_seed)
@@ -242,7 +259,7 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
             Y[:, oidx] += eta * np.asarray(noise)[:len(Y)][:, oidx] * scale[oidx]
         wchan = 1.0 / scale[oidx] if whiten else None
     resid = make_residual(tw, x0, Y, dt, oidx, wchan=wchan)
-    c_hat, J_final, hist = lm_fit(resid, jnp.zeros(4), n_iters=n_iters)
+    c_hat, J_final, hist = lm_fit(resid, jnp.zeros(4), n_iters=n_iters, solver=solver)
     c_hat = np.asarray(c_hat)
     c_true = np.asarray(tw.c_true)
     rel_err = float(np.linalg.norm(c_hat - c_true) / (np.linalg.norm(c_true) + 1e-300))
@@ -257,7 +274,8 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
                 # when whitened), and vif is what fitting the other three costs it.
                 col_norm=unc["col_norm"], se_unit=unc["se_unit"],
                 vif=unc["vif"], align=unc["align"],
-                cost0=float(hist[0]), cost_final=float(hist[-1]), eta=float(eta))
+                cost0=float(hist[0]), cost_final=float(hist[-1]), cost_hist=hist,
+                eta=float(eta))
 
 
 # --------------------------------------------------------------------------- #
