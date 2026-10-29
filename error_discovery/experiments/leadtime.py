@@ -289,15 +289,13 @@ def fig_recovery_and_conditioning(tag="main"):
     if "smin" in d:
         smin = np.nanmedian(d["smin"], axis=1)
         smax = np.nanmedian(d["smax"], axis=1)
-        rank = np.nanmedian(d["jrank"], axis=1)
         axb.plot(wd, smax, "^-", color="C4", ms=4, label=r"$\sigma_{\max}(J)$")
         axb.plot(wd, smin, "v-", color="C3", ms=4, label=r"$\sigma_{\min}(J)$")
         axb.axvline(w_opt, ls="--", color="C2", lw=1.2)
         axb.set_xscale("log"); axb.set_yscale("log")
         axb.set_xlabel("optimisation window  [days]")
         axb.set_ylabel("singular values of $J$")
-        axb.set_title(rf"(b)  rank {int(np.nanmin(rank))}/4 throughout; "
-                      r"short-window loss $=\sigma_{\min}$",
+        axb.set_title("(b)  median singular values of $J$",
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
     figstyle.finish(fig, sampling_line(d))
@@ -328,7 +326,8 @@ def fig_conditioning_only(tag="main_whiten"):
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("optimisation window  [days]")
     ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
-    ax.set_title("(a)  noiseless recovery error and conditioning", fontsize=9.5, loc="left")
+    ax.set_title("(a)  median noiseless recovery error and conditioning", fontsize=9.5,
+                 loc="left")
 
     ax2 = ax.twinx()
     ax2.plot(wd, cond_J, "D--", color="C3", alpha=0.6, label=r"cond$(J)$")
@@ -348,15 +347,13 @@ def fig_conditioning_only(tag="main_whiten"):
     if "smin" in d:
         smin = np.nanmedian(d["smin"], axis=1)
         smax = np.nanmedian(d["smax"], axis=1)
-        rank = np.nanmedian(d["jrank"], axis=1)
         axb.plot(wd, smax, "^-", color="C4", ms=4, label=r"$\sigma_{\max}(J)$")
         axb.plot(wd, smin, "v-", color="C3", ms=4, label=r"$\sigma_{\min}(J)$")
         axb.axvline(w_opt, ls="--", color="C2", lw=1.2)
         axb.set_xscale("log"); axb.set_yscale("log")
         axb.set_xlabel("optimisation window  [days]")
         axb.set_ylabel("singular values of $J$")
-        axb.set_title(rf"(b)  rank {int(np.nanmin(rank))}/4 throughout; "
-                      r"short-window loss $=\sigma_{\min}$",
+        axb.set_title("(b)  median singular values of $J$",
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
     figstyle.finish(fig, sampling_line(d))

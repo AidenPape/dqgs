@@ -98,7 +98,7 @@ from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
 from ..discovery import recover
 from ..sampling import (starting_states, sample_record, noise_scale, shared_noise,
-                        sampling_line, whiten_note)
+                        sampling_line)
 
 # g_coeffs indexes TwinModels.features(x) = (1, theta_a1, T_o1, psi_a1). "const" carries
 # no state dependence at all -- the error is just eps*(E x) -- which makes it the baseline
@@ -294,7 +294,6 @@ def figure(tag="main", eta_index=0):
     etas = d["noise_levels"]
     wh = bool(d["whiten"]) if "whiten" in d.files else False
     jsym = r"J_w" if wh else "J"
-    wnote = whiten_note(d)
 
     fig, (ax, axb) = plt.subplots(1, 2, figsize=(11.4, 4.4))
     colors = plt.get_cmap("tab10").colors
@@ -302,12 +301,10 @@ def figure(tag="main", eta_index=0):
     for i, nm in enumerate(names):
         cj = np.nanmedian(d["cond_J"][i], axis=1)
         ax.plot(wd, cj, "o-", ms=4, color=colors[i], label=nm)
-        ax.plot(wd[int(np.argmin(cj))], cj.min(), "*", ms=13, color=colors[i])
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("optimisation window  [days]")
     ax.set_ylabel(rf"cond$({jsym})=\sigma_{{\max}}/\sigma_{{\min}}$")
-    ax.set_title("(a)  conditioning vs window, by error driver\n"
-                 rf"{wnote}; $\star$ = each driver's best-conditioned window",
+    ax.set_title("(a)  median conditioning vs window, by error driver",
                  fontsize=9.5, loc="left")
     ax.legend(frameon=False, fontsize=8, title="driver $g(x)$", title_fontsize=8)
 
@@ -320,12 +317,12 @@ def figure(tag="main", eta_index=0):
     axb.set_xscale("log"); axb.set_yscale("log")
     axb.set_xlabel("optimisation window  [days]")
     axb.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
-    axb.set_title(rf"(b)  recovery under noise ($\eta={etas[eta_index]:.0e}$)"
+    axb.set_title(rf"(b)  median recovery under noise ($\eta={etas[eta_index]:.0e}$)"
                   "\nmixed is a joint norm over three coefficients",
                   fontsize=9.5, loc="left")
     axb.legend(frameon=False, fontsize=8)
 
     figstyle.finish(fig, sampling_line(d))
-    out = os.path.join(RESULTS_DIR, f"fig_driver_window_{tag}.png")
+    out = os.path.join(RESULTS_DIR, f"fig_driver_conditioning_recovery_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]

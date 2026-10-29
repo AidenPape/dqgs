@@ -169,7 +169,7 @@ from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
 from ..discovery import residual_jacobian, coefficient_uncertainty
 from ..sampling import (starting_states, sample_record, noise_scale, is_sampled,
-                        sampling_line, whiten_note)
+                        sampling_line)
 
 # ``driver_window``'s single drivers, duplicated rather than imported -- studies do not import
 # each other. Slots index features(x) = (1, theta_a1, T_o1, psi_a1). Its ``mixed`` driver is
@@ -329,9 +329,6 @@ def figure(tag="main"):
     names = [str(n) for n in d["drivers"]]
     wd = d["window_days"]
     c_true = d["c_true"]
-    wnote = whiten_note(d)
-    unit = "starting states" if is_sampled(d) else "segments"
-    n_seg = d["se_unit"].shape[2]
 
     fig, (ax, axb, axc) = plt.subplots(1, 3, figsize=(15.0, 4.4))
     colors = plt.get_cmap("tab10").colors
@@ -343,12 +340,10 @@ def figure(tag="main"):
         ax.fill_between(wd, np.nanmin(q, axis=1), np.nanmax(q, axis=1),
                         color=colors[i], alpha=0.15, lw=0)
         ax.plot(wd, rse, "o-", ms=4, color=colors[i], label=nm)
-        ax.plot(wd[int(np.argmin(rse))], rse.min(), "*", ms=13, color=colors[i])
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("optimisation window  [days]")
     ax.set_ylabel(r"$\sigma_{\hat c_k}/(|c_k|\,\sigma_{\rm obs})$")
-    ax.set_title("(a)  uncertainty of the driver's own coefficient\n"
-                 rf"{wnote}" "\n" rf"band = range over {unit}; $\star$ = best window",
+    ax.set_title("(a)  median uncertainty of the driver's own coefficient",
                  fontsize=9.5, loc="left")
     ax.legend(frameon=False, fontsize=8, title="driver $g(x)$", title_fontsize=8)
 
@@ -356,14 +351,12 @@ def figure(tag="main"):
         vf = np.nanmedian(own(d["vif"][i], c_true[i]), axis=1)
         axb.plot(wd, vf, "s-", ms=5, color=colors[i], label=nm)
     axb.axhline(1.0, ls=":", color="grey", lw=1)
-    axb.text(wd[0], 1.05, "no aliasing cost", color="grey", fontsize=8,
+    axb.text(wd[0], 1.05, "VIF = 1", color="grey", fontsize=8,
              va="bottom", ha="left", bbox=LBL_BBOX)
     axb.set_xscale("log"); axb.set_yscale("log")
     axb.set_xlabel("optimisation window  [days]")
     axb.set_ylabel(r"VIF$_k=\|J_{:,k}\|^2\,[(J^TJ)^{-1}]_{kk}$")
-    axb.set_title("(b)  price of not knowing the form\n"
-                  "variance inflation from fitting the other three coefficients",
-                  fontsize=9.5, loc="left")
+    axb.set_title("(b)  median variance inflation factor", fontsize=9.5, loc="left")
 
     for i, nm in enumerate(names):
         q = own(d["align"][i], c_true[i])
@@ -377,9 +370,8 @@ def figure(tag="main"):
     axc.set_ylim(0, 1.02)
     axc.set_xlabel("optimisation window  [days]")
     axc.set_ylabel(r"$|\langle v_{\min},e_k\rangle|$")
-    axc.set_title("(c)  mechanism: overlap with the worst-determined\n"
-                  "singular direction; bands = the amplitude-matched\n"
-                  f"pair, {n_seg} {unit}",
+    axc.set_title("(c)  median overlap with the worst-determined\n"
+                  "singular direction",
                   fontsize=9.5, loc="left")
 
     figstyle.finish(fig, sampling_line(d))
@@ -407,9 +399,6 @@ def _draw_bounds(plt, d, tag):
     names = [str(n) for n in d["drivers"]]
     wd = d["window_days"]
     c_true = d["c_true"]
-    wh = bool(d["whiten"]) if "whiten" in d.files else False
-    jsym = "J_w" if wh else "J"
-    wnote = whiten_note(d)
     colors = plt.get_cmap("tab10").colors
 
     fig, axes = plt.subplots(1, 4, figsize=(17.0, 4.3), sharey=True)
@@ -450,10 +439,8 @@ def _draw_bounds(plt, d, tag):
         frameon=False, fontsize=8, ncol=3, loc="lower center")
 
     line = sampling_line(d)
-    fig.suptitle(rf"nested bounds on the driver's own coefficient; {wnote}. "
-                 rf"grey band $=$ cond$({jsym})$, coloured band $=\sqrt{{\rm VIF}}$, "
-                 rf"the price of not knowing the form" + (f"\n{line}" if line else ""),
-                 fontsize=9.5)
+    fig.suptitle("median nested bounds on the driver's own coefficient"
+                 + (f"\n{line}" if line else ""), fontsize=9.5)
     fig.tight_layout(rect=(0, 0.06, 1, 0.94))
     out = os.path.join(RESULTS_DIR, f"fig_driver_uncertainty_bounds_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
