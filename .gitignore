@@ -14,10 +14,8 @@ __pycache__/
 
 # Generated results: figures are tracked because the manuscript needs them,
 # but the arrays and job logs they come from are not.
-error_discovery/results/*.npz
-error_discovery/results/*.log
-error_discovery/results/*jobid.txt
-error_discovery/results/*.status
+error_discovery/results/data/
+error_discovery/results/logs/
 scratch/*.npz
 scratch/*.log
 

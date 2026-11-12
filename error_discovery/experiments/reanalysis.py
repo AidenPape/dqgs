@@ -23,7 +23,7 @@ import jax.numpy as jnp
 from .. import figstyle
 from ..models import TwinModels
 from ..discovery import rollout
-from ..config import RESULTS_DIR, DT
+from ..config import DATA_DIR, FIGURES_DIR, DT
 from ..figstyle import DPI
 from ..formfit import twin, transient_traj, err_tendency, fit, resid, margin_named, true_term
 
@@ -66,8 +66,8 @@ def reanalysis(eps_list=(0.1, 0.3, 1.0), taus=(100.0, 20.0, 5.0), n=4000, n_spin
 
 def run():
     r = reanalysis()
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "reanalysis_results.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "reanalysis_results.npz"),
              biased=np.asarray(r["biased"]), transient=np.asarray(r["transient"]),
              eps=np.asarray([x["eps"] for x in r["rows"]]),
              true=np.asarray([x["true"] for x in r["rows"]]),
@@ -83,7 +83,7 @@ def run():
 
 def figure():
     plt = figstyle.pyplot()
-    d = np.load(os.path.join(RESULTS_DIR, "reanalysis_results.npz"))
+    d = np.load(os.path.join(DATA_DIR, "reanalysis_results.npz"))
     nud = d["nudged"][-1]                                # strongest error (eps=1.0)
     labels = ["biased\nclimatology", 'true climatology\n("reanalysis")',
               f"nudged reanalysis\n(τ={nud[-1][0]:.0f})", "transient\n(off-attractor)"]
@@ -95,6 +95,6 @@ def figure():
     ax.set_ylabel("form-identifiability margin")
     ax.set_title(r"Is reanalysis far enough to identify $g=T_{o,1}$?")
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_reanalysis.png")
+    out = os.path.join(FIGURES_DIR, "fig_reanalysis.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]

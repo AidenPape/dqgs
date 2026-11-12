@@ -33,7 +33,7 @@ import jax.numpy as jnp
 
 from ..discovery import rollout
 from .. import figstyle
-from ..config import RESULTS_DIR, DT, EPS
+from ..config import DATA_DIR, FIGURES_DIR, DT, EPS
 from ..figstyle import DPI
 from ..formfit import twin, err_tendency, fit, resid, margin_named, true_term
 
@@ -87,8 +87,8 @@ def run(n=4000, spin=40000):
     for nm in names:
         mg, slo, fas = res[nm]
         print(f"[{nm:32s}] margin={mg:+.3f}  std(T_o1)={slo:.4f}  std(psi_a1)={fas:.4f}")
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "increment_results.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "increment_results.npz"),
              names=np.asarray(names), eps=EPS,
              margin=np.asarray([res[k][0] for k in names]),
              To1_std=np.asarray([res[k][1] for k in names]),
@@ -98,7 +98,7 @@ def run(n=4000, spin=40000):
 
 def figure():
     plt = figstyle.pyplot()
-    d = np.load(os.path.join(RESULTS_DIR, "increment_results.npz"), allow_pickle=True)
+    d = np.load(os.path.join(DATA_DIR, "increment_results.npz"), allow_pickle=True)
     names = [n.decode() if isinstance(n, bytes) else str(n) for n in d["names"]]
     short = ["biased\nclimate", "true climate\n(reanalysis)", "DA fc\nshort (3 d)",
              "DA fc\nlong (22 d)", "transient\n(off-attractor)"]
@@ -122,6 +122,6 @@ def figure():
     ax[1].set_title("(b)", fontsize=10, loc="left")
     ax[1].legend(fontsize=8, frameon=False)
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_increment.png")
+    out = os.path.join(FIGURES_DIR, "fig_increment.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]

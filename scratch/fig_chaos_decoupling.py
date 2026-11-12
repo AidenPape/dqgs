@@ -24,7 +24,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RES = os.path.join(os.path.dirname(HERE), "error_discovery", "results")
+RES = os.path.join(os.path.dirname(HERE), "error_discovery", "results", "figures")
 HORIZON = {36: 37.5, 58: 11.0}      # 2-seed 18-yr Benettin estimate (lyap_converged.py)
 
 

@@ -5,8 +5,8 @@ how does it change with eta?
 ``driver_window.run`` once per regime (passive, active, both): one driver (T_o1, then
 theta_a1), 16 states, noisy fits on all 13 windows (0.45-89.7 d) at eta = 1e-4, 1e-3, 1e-2,
 1e-1, 3 seeds (common random numbers), no noiseless sweep (0b makes those fits). Every other knob
-at its default. Writes ``results/driver_window_stage1_<driver>_<regime>.npz``, prints tables A and
-B, draws Figs. 1-3 (``results/stage1_<driver>_*.png``).
+at its default. Writes ``results/data/driver_window_stage1_<driver>_<regime>.npz``, prints
+tables A and B, draws Figs. 1-3 (``results/figures/stage1_<driver>_*.png``).
 
 Measured std = std of the driver's own fitted coefficient across seeds (ddof 1). Predicted std =
 eta x s.e. per unit noise from the residual Jacobian at c_true, read from
@@ -24,7 +24,7 @@ import numpy as np
 from scipy import stats
 
 from error_discovery import figstyle
-from error_discovery.config import RESULTS_DIR, ETA_GRID
+from error_discovery.config import DATA_DIR, FIGURES_DIR, ETA_GRID
 from error_discovery.experiments import driver_window
 
 REGIMES = ("passive", "active", "both")
@@ -35,7 +35,7 @@ MARKER = {"passive": "o", "active": "^", "neither": "s"}   # Fig. 1: regime at t
 
 
 def _path(tag, regime):
-    return os.path.join(RESULTS_DIR, f"driver_window_{tag}_{regime}.npz")
+    return os.path.join(DATA_DIR, f"driver_window_{tag}_{regime}.npz")
 
 
 def _load(tag, regimes):
@@ -62,7 +62,7 @@ def spreads(d, regime):
     """Measured std, predicted std and |bias| of the driver's own coefficient, each (eta, window,
     state). Bias = mean error across seeds."""
     driver, k = _coefficient(d)
-    u = np.load(os.path.join(RESULTS_DIR, f"driver_uncertainty_{regime}_n60.npz"))
+    u = np.load(os.path.join(DATA_DIR, f"driver_uncertainty_{regime}_n60.npz"))
     n = d["c_hats_noise"].shape[3]
     assert np.array_equal(u["sample_snapshot_index"][:n], d["sample_snapshot_index"]), regime
     assert np.array_equal(u["windows"], d["noise_windows"]), regime
@@ -148,7 +148,7 @@ def figure(tag=f"stage1_{DRIVER}", regimes=REGIMES):
         axes[0, -1].legend(fontsize=8, loc="upper left")
         figstyle.finish(fig, f"Stage 1: {driver} coefficient, {w:.1f} d window; one dot per state "
                              f"and eta; grey = 1:1 and the 90% range of a {n_seeds}-seed std")
-        path = os.path.join(RESULTS_DIR, f"{tag}_states_{w:06.2f}d.png")
+        path = os.path.join(FIGURES_DIR, f"{tag}_states_{w:06.2f}d.png")
         fig.savefig(path, dpi=figstyle.DPI); plt.close(fig)
         out.append(path)
 
@@ -168,7 +168,7 @@ def figure(tag=f"stage1_{DRIVER}", regimes=REGIMES):
     axes[0, -1].legend(fontsize=8, loc="best")
     figstyle.finish(fig, f"Stage 1: {driver} coefficient; band = order-statistic interval of "
                          "the median (97.9% at 16 states)")
-    path = os.path.join(RESULTS_DIR, f"{tag}_ratio.png")
+    path = os.path.join(FIGURES_DIR, f"{tag}_ratio.png")
     fig.savefig(path, dpi=figstyle.DPI); plt.close(fig)
     out.append(path)
     return out
@@ -213,7 +213,7 @@ def spread_figure(tag=f"stage1_{DRIVER}", regimes=REGIMES, over_ctrue=False):
                          "= predicted (eta x s.e.)\nband = 4th-13th of 16 states (measured)"
                          + ("; grey = spread equals c_true" if over_ctrue else ""))
     suffix = "spread_over_ctrue" if over_ctrue else "spread"
-    path = os.path.join(RESULTS_DIR, f"{tag}_{suffix}.png")
+    path = os.path.join(FIGURES_DIR, f"{tag}_{suffix}.png")
     fig.savefig(path, dpi=figstyle.DPI); plt.close(fig)
     return [path]
 

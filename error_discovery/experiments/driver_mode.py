@@ -118,7 +118,7 @@ minimum`` span is a single window for nine of the ten, and two windows for mode 
 
 Whitened by default, like every study since 2026-08-20; see ``discovery.recover``.
 
-Results -> ``results/driver_mode_<tag>.npz``.
+Results -> ``results/data/driver_mode_<tag>.npz``.
 """
 
 import os
@@ -128,7 +128,7 @@ import numpy as np
 
 from .. import figstyle
 from ..attractor import get_attractor_ic, build_segments, segments_from_states
-from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+from ..config import (ExperimentConfig, DATA_DIR, FIGURES_DIR, steps_to_days, N_SAMPLES, SPACING_K,
                       MIN_EPISODE_DAYS, ETA_GRID)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
@@ -265,8 +265,8 @@ def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
                   f"noiseless rel_err med={np.nanmedian(rel[im]):.2e}   "
                   f"[{time.time() - td:.0f}s]")
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    out = os.path.join(RESULTS_DIR, f"driver_mode_{tag}.npz")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    out = os.path.join(DATA_DIR, f"driver_mode_{tag}.npz")
     np.savez(
         out,
         modes=np.asarray(modes),
@@ -292,7 +292,7 @@ def run(tag="main", modes=ALL_MODES, n_ic=3, n_seeds=2, lm_iters=40,
 
 
 def _load(tag):
-    return np.load(os.path.join(RESULTS_DIR, f"driver_mode_{tag}.npz"), allow_pickle=True)
+    return np.load(os.path.join(DATA_DIR, f"driver_mode_{tag}.npz"), allow_pickle=True)
 
 
 def figure(tag="main", eta_index=0):
@@ -374,6 +374,6 @@ def figure(tag="main", eta_index=0):
     cb.set_ticks(modes)
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, f"fig_driver_mode_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_driver_mode_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]

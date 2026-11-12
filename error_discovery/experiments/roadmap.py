@@ -16,7 +16,7 @@ the registry lists it with no compute step.
 import os
 
 from .. import figstyle
-from ..config import RESULTS_DIR
+from ..config import FIGURES_DIR
 from ..figstyle import DPI
 
 
@@ -76,7 +76,7 @@ def figure(save=True):
     ax.text(5, 6.4, "How the injected error is used", fontsize=12.5,
             fontweight="bold", ha="center", va="top")
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_roadmap.png")
+    out = os.path.join(FIGURES_DIR, "fig_roadmap.png")
     if save:
         fig.savefig(out, dpi=DPI)
     plt.close(fig)

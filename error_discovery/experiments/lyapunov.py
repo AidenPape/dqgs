@@ -52,7 +52,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .. import figstyle
-from ..config import (RESULTS_DIR, IC_DIR, DT, NDIM_PER_DAY, STEPS_PER_DAY, DAYS_PER_YEAR,
+from ..config import (DATA_DIR, FIGURES_DIR, IC_DIR, DT, NDIM_PER_DAY, STEPS_PER_DAY, DAYS_PER_YEAR,
                       IC_SEED, IC_SCALE, ExperimentConfig, ic_path)
 from ..discovery import (lyapunov_spectrum, running_exponents, blocking_error,
                          kolmogorov_entropy, kaplan_yorke_dim)
@@ -92,7 +92,7 @@ OLD_BLOCK, OLD_N_BLOCKS, OLD_DROP = 200, 600, 120
 
 
 def _path(name, tag):
-    return os.path.join(RESULTS_DIR, f"lyapunov_{name}_{tag}.npz")
+    return os.path.join(DATA_DIR, f"lyapunov_{name}_{tag}.npz")
 
 
 def _years_to_steps(years):
@@ -216,7 +216,7 @@ def _run_config(name, years, n_ic, block, tag):
         ladder_years=ladder * yr_per_block, running_day=np.array(running) * NDIM_PER_DAY,
         old_settings_lam1_nd=np.array(old_lam1), x_starts=np.array(x_starts),
     )
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
     np.savez(_path(name, tag), **out)
 
     lam_ic = spectra_day[:, 0]
@@ -256,8 +256,8 @@ def block_sensitivity(blocks=(10, 50, 100, 200, 500), block_years=60.0, tag="mai
     out = dict(blocks=np.array(blocks), block_years=block_years, spectra_day=spectra,
                max_abs_diff_from_100=np.abs(spectra - spectra[list(blocks).index(100)]).max(axis=1)
                if 100 in blocks else np.full(len(blocks), np.nan))
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, f"lyapunov_block_{tag}.npz"), **out)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, f"lyapunov_block_{tag}.npz"), **out)
     return out
 
 
@@ -309,8 +309,8 @@ def qgs_check(qgs_pre_years=1.0, qgs_years=2.0, tag="main"):
                ours_day=ours_day, qgs_day=qgs_day, diff_day=ours_day - qgs_day,
                block_max_abs_diff=np.abs(ours_logs - qgs_logs).max(axis=0),
                seconds_qgs=t_qgs, seconds_ours=t_ours)
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, f"lyapunov_qgs_{tag}.npz"), **out)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, f"lyapunov_qgs_{tag}.npz"), **out)
     print(f"[qgs]   {nb - 1} blocks compared: max |ours - qgs| {np.abs(out['diff_day']).max():.2e} "
           f"/day over the window, {out['block_max_abs_diff'].max():.2e} per block log-stretch "
           f"(qgs {t_qgs:.0f}s, ours {t_ours:.0f}s)")
@@ -353,7 +353,7 @@ def figure(tag="main"):
     b.set_title(r"(b) spectrum, $\pm$1 blocking standard error", fontsize=10, loc="left")
 
     # (c) ours minus qgs on the same trajectory and frame, against our error bar
-    qpath = os.path.join(RESULTS_DIR, f"lyapunov_qgs_{tag}.npz")
+    qpath = os.path.join(DATA_DIR, f"lyapunov_qgs_{tag}.npz")
     if os.path.exists(qpath) and "default" in runs:
         q, se = np.load(qpath), runs["default"]["se_day"]
         idx = np.arange(1, se.size + 1)
@@ -370,7 +370,7 @@ def figure(tag="main"):
     c.set_title("(c) cross-check against qgs, our configuration", fontsize=10, loc="left")
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, f"fig_lyapunov_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_lyapunov_{tag}.png")
     fig.savefig(out, dpi=figstyle.DPI, bbox_inches="tight")
     plt.close(fig)
     return [out, table_figure(tag)]
@@ -404,7 +404,7 @@ def table_figure(tag="main"):
         tbl.scale(1.0, 1.35)
     ax.set_title("Lyapunov diagnostics. Published: Tondeur et al. (2020) Table 3; De Cruz et "
                  "al. (2018) Figs. 10, 16, 17, read off the figures", fontsize=10)
-    out = os.path.join(RESULTS_DIR, f"fig_lyapunov_table_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_lyapunov_table_{tag}.png")
     fig.savefig(out, dpi=figstyle.DPI, bbox_inches="tight")
     plt.close(fig)
     return out

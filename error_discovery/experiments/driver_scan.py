@@ -40,7 +40,7 @@ from .. import figstyle
 from ..models import TwinModels
 from ..formfit import (attractor_traj, transient_traj, err_tendency,
                        fit, resid, margin_named)
-from ..config import RESULTS_DIR, THRESH, EPS
+from ..config import DATA_DIR, FIGURES_DIR, THRESH, EPS
 from ..figstyle import DPI
 
 # name, g_coeffs, true library term, driver state index (None for the constant)
@@ -99,8 +99,8 @@ def run(n=4000, reps=20, noise=0.02, seed=0, save=True):
             margin_att_noisy=float(np.median(mgN)), correct_att_noisy=float(okN.mean()),
             margin_off=mg_off))
     if save:
-        os.makedirs(RESULTS_DIR, exist_ok=True)
-        np.savez(os.path.join(RESULTS_DIR, "driver_scan.npz"),
+        os.makedirs(DATA_DIR, exist_ok=True)
+        np.savez(os.path.join(DATA_DIR, "driver_scan.npz"),
                  names=np.asarray([r["name"].replace("\n", " ") for r in rows]),
                  r_att=np.asarray([r["r_att"] for r in rows]),
                  margin_att=np.asarray([r["margin_att"] for r in rows]),
@@ -123,7 +123,7 @@ def run(n=4000, reps=20, noise=0.02, seed=0, save=True):
 def scan_figure(rows=None):
     plt = figstyle.pyplot()
     if rows is None:
-        d = np.load(os.path.join(RESULTS_DIR, "driver_scan.npz"), allow_pickle=True)
+        d = np.load(os.path.join(DATA_DIR, "driver_scan.npz"), allow_pickle=True)
         rows = [dict(name=n.replace(" ", "\n", 1), r_att=ra, margin_att=ma,
                      margin_att_noisy=mn, margin_off=mo)
                 for n, ra, ma, mn, mo in zip(d["names"], d["r_att"], d["margin_att"],
@@ -172,7 +172,7 @@ def scan_figure(rows=None):
     b.legend(fontsize=7.5, frameon=False, loc="lower left")
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_driver_collapse.png")
+    out = os.path.join(FIGURES_DIR, "fig_driver_collapse.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
@@ -186,7 +186,7 @@ def tandem_figure(save=True):
     error form is buried among near-constant aliases, the broad mode's form stands
     alone. Same 20k-step record for both, so |mean|/std matches ``driver_scan``."""
     plt = figstyle.pyplot()
-    z = np.load(os.path.join(RESULTS_DIR, "driver_scan.npz"), allow_pickle=True)
+    z = np.load(os.path.join(DATA_DIR, "driver_scan.npz"), allow_pickle=True)
     fig, ax = plt.subplots(2, 2, figsize=(11, 6.9))
     jit = np.random.default_rng(0)
     for col, (title, tname, didx, color) in enumerate(TANDEM):
@@ -247,7 +247,7 @@ def tandem_figure(save=True):
     fig.suptitle("Broadly-varying modes expose their error form on the climatology; "
                  "tightly-pinned modes hide it", fontsize=12.5, y=1.0)
     fig.tight_layout(rect=(0, 0, 1, 0.965))
-    out = os.path.join(RESULTS_DIR, "fig_stiff.png")
+    out = os.path.join(FIGURES_DIR, "fig_stiff.png")
     if save:
         fig.savefig(out, dpi=DPI)
     plt.close(fig)

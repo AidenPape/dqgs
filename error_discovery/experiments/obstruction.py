@@ -47,7 +47,7 @@ import os
 import numpy as np
 
 from .. import figstyle
-from ..config import RESULTS_DIR, EPS, THRESH
+from ..config import DATA_DIR, FIGURES_DIR, EPS, THRESH
 from ..figstyle import DPI
 from ..formfit import twin, attractor_traj, transient_traj
 from ..screening import max_mean_over_std, margin_driver, identifiable_count
@@ -77,8 +77,8 @@ def run(n=4000, n_transient=4000, seed=0):
         rows[name] = dict(max_meanstd=mm, ident_restricted=nr, ident_full=nf,
                           median_margin_full=float(np.median(mf)))
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "meanstd_results.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "meanstd_results.npz"),
              names=np.asarray(list(rows)), eps=EPS, ndim=tw.ndim,
              max_meanstd=np.asarray([rows[k]["max_meanstd"] for k in rows]),
              ident_restricted=np.asarray([rows[k]["ident_restricted"] for k in rows]),
@@ -123,8 +123,8 @@ def eps_sweep(eps_list=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0), n=4000, n_spin=40000, se
         rows.append(dict(eps=float(eps), max_meanstd=max_mean_over_std(Xtrue),
                          margin_restricted=margin_driver(tw, Xtrue, k, "restricted")[0],
                          margin_full=margin_driver(tw, Xtrue, k, "full")[0]))
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "meanstd_eps.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "meanstd_eps.npz"),
              eps=np.asarray([r["eps"] for r in rows]),
              max_meanstd=np.asarray([r["max_meanstd"] for r in rows]),
              margin_restricted=np.asarray([r["margin_restricted"] for r in rows]),
@@ -138,7 +138,7 @@ def eps_sweep(eps_list=(0.1, 0.5, 1.0, 2.0, 5.0, 10.0), n=4000, n_spin=40000, se
 
 def figure():
     plt = figstyle.pyplot()
-    d = np.load(os.path.join(RESULTS_DIR, "meanstd_results.npz"), allow_pickle=True)
+    d = np.load(os.path.join(DATA_DIR, "meanstd_results.npz"), allow_pickle=True)
     names = [n.decode() if isinstance(n, bytes) else str(n) for n in d["names"]]
     ndim = int(d["ndim"])
     short = [n.split(" (")[0] + "\n(" + n.split(" (")[1] if " (" in n else n for n in names]
@@ -171,7 +171,7 @@ def figure():
     ax.legend(frameon=False, fontsize=8, ncol=2, loc="upper center",
               bbox_to_anchor=(0.5, -0.12))
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_meanstd.png")
+    out = os.path.join(FIGURES_DIR, "fig_meanstd.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return [out]

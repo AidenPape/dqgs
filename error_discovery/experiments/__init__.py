@@ -4,7 +4,7 @@ error_discovery.experiments
 
 One module per study. Every one of them answers to the same pair::
 
-    run(...)     computes, writes .npz to RESULTS_DIR, returns its results
+    run(...)     computes, writes .npz to DATA_DIR, returns its results
     figure(...)  reloads that .npz, draws, returns the list of paths written
 
 ``run`` never draws and ``figure`` never computes, so a figure can be re-rendered

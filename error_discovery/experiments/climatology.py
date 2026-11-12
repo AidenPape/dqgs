@@ -23,7 +23,7 @@ for the corrected model. The corrected climatology should match the truth (the
 recovered form is global, so it reproduces the attractor, not just the fitting
 window), while the uncorrected base climatology carries the injected error's bias.
 
-Results -> results/climatology_results.npz; figure -> results/fig_climatology.png.
+Results -> results/data/climatology_results.npz; figure -> results/figures/fig_climatology.png.
 """
 
 import os
@@ -33,7 +33,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .. import figstyle
-from ..config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from ..config import ExperimentConfig, DATA_DIR, FIGURES_DIR, steps_to_days
 from ..models import TwinModels
 from ..discovery import rollout, recover
 from ..attractor import get_attractor_ic, build_segments
@@ -90,8 +90,8 @@ def run(n_clim=150_000, recover_window=1280, verbose=True):
         return float(np.sqrt((nb["mean"] ** 2).mean()))
     rms_base, rms_corr, rms_floor = rms(nb_base), rms(nb_corr), rms(nb_floor)
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "climatology_results.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "climatology_results.npz"),
              n_clim=n_clim, n_clim_days=steps_to_days(n_clim),
              c_hat=np.asarray(c_hat), c_true=np.asarray(tw.c_true), rel_err=r["rel_err"],
              truth_mean=st_t["mean"], truth_std=st_t["std"],
@@ -112,7 +112,7 @@ def run(n_clim=150_000, recover_window=1280, verbose=True):
 
 def figure():
     plt = figstyle.pyplot()
-    d = np.load(os.path.join(RESULTS_DIR, "climatology_results.npz"))
+    d = np.load(os.path.join(DATA_DIR, "climatology_results.npz"))
     ndim = len(d["truth_mean"])
     x = np.arange(ndim)
     fig, ax = plt.subplots(1, 2, figsize=(10, 4))
@@ -159,7 +159,7 @@ def figure():
     ax[1].set_title("(b)", loc="left", fontsize=10)
     ax[1].legend(frameon=False, fontsize=7, ncol=1)
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_climatology.png")
+    out = os.path.join(FIGURES_DIR, "fig_climatology.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return [out]

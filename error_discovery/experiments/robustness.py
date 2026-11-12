@@ -39,7 +39,7 @@ import numpy as np
 from .. import figstyle
 from ..formfit import twin, attractor_traj, transient_traj
 from ..screening import exchange_image, max_mean_over_std, mean_over_std
-from ..config import RESULTS_DIR, THRESH, EPS
+from ..config import DATA_DIR, FIGURES_DIR, THRESH, EPS
 from ..figstyle import DPI, LBL_BBOX
 
 
@@ -101,8 +101,8 @@ def law_validation(n=4000, seed=0):
             margins.append(float(np.delete(R, t).min() - R[t]))
         names_out.append(nm); mm_out.append(max_mean_over_std(X))
         margin_out.append(float(np.median(margins)))
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "robust_law.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "robust_law.npz"),
              names=np.asarray(names_out), max_meanstd=np.asarray(mm_out),
              margin=np.asarray(margin_out))
     print(f"{'distribution':20s} {'max|m|/std':>10s} {'margin':>9s} {'margin*max':>10s}")
@@ -137,8 +137,8 @@ def parsimony_floor(n=4000):
         const[k] = float(R[ci] - R[t])                      # the simplest alias
     named = {"psi_a1": tw.idx_psia1, "theta_a1": tw.idx_thetaa1, "T_o1": tw.idx_To1}
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "robust_parsimony.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "robust_parsimony.npz"),
              meanstd=ms, raw_margin=raw, const_margin=const,
              named=np.asarray(list(named.items()), dtype=object))
     proof = const < THRESH                                  # unidentifiable even vs the constant
@@ -178,7 +178,7 @@ def figure():
         a.axhline(THRESH, ls=":", color="C3", lw=1, zorder=1)
 
     # ----- (a) the screening relation across sampling distributions --------- #
-    d = np.load(os.path.join(RESULTS_DIR, "robust_law.npz"), allow_pickle=True)
+    d = np.load(os.path.join(DATA_DIR, "robust_law.npz"), allow_pickle=True)
     names = list(d["names"]); mm, mg = d["max_meanstd"], d["margin"]
     a = ax[0]
     xx = np.logspace(-2, 3.2, 200)
@@ -208,7 +208,7 @@ def figure():
     a.legend(fontsize=7.5, frameon=False, loc="lower left")
 
     # ----- (b) the parsimony floor: the constant alias --------------------- #
-    p = np.load(os.path.join(RESULTS_DIR, "robust_parsimony.npz"), allow_pickle=True)
+    p = np.load(os.path.join(DATA_DIR, "robust_parsimony.npz"), allow_pickle=True)
     ms, rawm, cm = p["meanstd"], p["raw_margin"], p["const_margin"]
     named = dict(p["named"]); idx = [int(v) for v in named.values()]
     b = ax[1]
@@ -247,7 +247,7 @@ def figure():
     fig.tight_layout(rect=(0, 0.16, 1, 1))
     fig.legend(hb, lb, loc="lower center", ncol=3, fontsize=7.5, frameon=False,
                bbox_to_anchor=(0.5, 0.0), columnspacing=1.4, handletextpad=0.5)
-    out = os.path.join(RESULTS_DIR, "fig_robustness.png")
+    out = os.path.join(FIGURES_DIR, "fig_robustness.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]
 
@@ -264,7 +264,7 @@ def table_figure():
     plt = figstyle.pyplot()
     from matplotlib.patches import Patch
 
-    d = np.load(os.path.join(RESULTS_DIR, "robust_law.npz"), allow_pickle=True)
+    d = np.load(os.path.join(DATA_DIR, "robust_law.npz"), allow_pickle=True)
     names, mm, mg = list(d["names"]), d["max_meanstd"], d["margin"]
 
     label = {
@@ -314,7 +314,7 @@ def table_figure():
                          Patch(color="C0", label="identifiable")],
                fontsize=8.5, frameon=False, loc="lower center", ncol=2,
                bbox_to_anchor=(0.5, 0.0))
-    out = os.path.join(RESULTS_DIR, "fig_robustness_table.png")
+    out = os.path.join(FIGURES_DIR, "fig_robustness_table.png")
     fig.savefig(out, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
     return out

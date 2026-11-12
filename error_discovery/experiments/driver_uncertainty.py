@@ -153,7 +153,7 @@ psi_a1:
 Median cond(J_w) at 89.7 d: passive 4.9e5, active 6.3e4, both 1.0e7. One run per mode, one
 base run; the noise scale is provisional until the fitting session.
 
-Results -> ``results/driver_uncertainty_<tag>.npz``.
+Results -> ``results/data/driver_uncertainty_<tag>.npz``.
 """
 
 import os
@@ -163,7 +163,7 @@ import numpy as np
 
 from .. import figstyle
 from ..attractor import get_attractor_ic, build_segments, segments_from_states
-from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+from ..config import (ExperimentConfig, DATA_DIR, FIGURES_DIR, steps_to_days, N_SAMPLES, SPACING_K,
                       MIN_EPISODE_DAYS)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
@@ -280,8 +280,8 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, whiten=True, verbose=True,
                   f"VIF there {vf[best]:.2e}   (VIF range {vf.min():.2e}-{vf.max():.2e})   "
                   f"[{time.time() - td:.0f}s]")
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    out = os.path.join(RESULTS_DIR, f"driver_uncertainty_{tag}.npz")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    out = os.path.join(DATA_DIR, f"driver_uncertainty_{tag}.npz")
     np.savez(
         out,
         drivers=np.asarray(list(drivers)),
@@ -300,7 +300,7 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, whiten=True, verbose=True,
 
 
 def _load(tag):
-    return np.load(os.path.join(RESULTS_DIR, f"driver_uncertainty_{tag}.npz"),
+    return np.load(os.path.join(DATA_DIR, f"driver_uncertainty_{tag}.npz"),
                    allow_pickle=True)
 
 
@@ -375,7 +375,7 @@ def figure(tag="main"):
                   fontsize=9.5, loc="left")
 
     figstyle.finish(fig, sampling_line(d))
-    out = os.path.join(RESULTS_DIR, f"fig_driver_uncertainty_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_driver_uncertainty_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out, _draw_bounds(plt, d, tag)]
 
@@ -442,7 +442,7 @@ def _draw_bounds(plt, d, tag):
     fig.suptitle("median nested bounds on the driver's own coefficient"
                  + (f"\n{line}" if line else ""), fontsize=9.5)
     fig.tight_layout(rect=(0, 0.06, 1, 0.94))
-    out = os.path.join(RESULTS_DIR, f"fig_driver_uncertainty_bounds_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_driver_uncertainty_bounds_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 

@@ -9,9 +9,9 @@ or detached so it survives a dead shell:
     cd /glade/u/home/wchapman/help_aiden
     setsid bash -c 'JAX_ENABLE_X64=1 \
         /glade/work/wchapman/conda-envs/run_graphcast/bin/python -m error_discovery.finish_c3 \
-        > error_discovery/results/c3_sweep.log 2>&1' &
+        > error_discovery/results/logs/c3_sweep.log 2>&1' &
 
-Writes results/sparsity_sparsity.npz, fig_sparsity_noise_sparsity.png,
+Writes results/data/sparsity_sparsity.npz, results/figures/fig_sparsity_noise_sparsity.png,
 fig_sparsity_window_sparsity.png. Reads the cached attractor IC read-only (it does
 NOT rebuild or clobber initial_conditions/attractor_ic_default_sp800000.npz, since the default
 recipe matches).

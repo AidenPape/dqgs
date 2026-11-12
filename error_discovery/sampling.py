@@ -30,7 +30,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from .config import (RESULTS_DIR, DT, STEPS_PER_DAY, DAYS_PER_YEAR, SAMPLING_SOURCE,
+from .config import (DATA_DIR, DT, STEPS_PER_DAY, DAYS_PER_YEAR, SAMPLING_SOURCE,
                      BASE_RUN_YEARS, CHUNK_YEARS, SNAPSHOT_EVERY, REGIME_T_DAYS, REGIME_CUTOFF,
                      HIGHPASS_DAYS, TAU_C, N_SAMPLES, SPACING_K, MIN_EPISODE_DAYS,
                      baserun_path, regimes_path)
@@ -67,7 +67,7 @@ def _chunk_recipe(config, start_steps, chunk_years, snapshot_every):
 
 
 def base_run(n_years=BASE_RUN_YEARS, chunk_years=CHUNK_YEARS, snapshot_every=SNAPSHOT_EVERY,
-             directory=RESULTS_DIR, verbose=True):
+             directory=DATA_DIR, verbose=True):
     """Integrate the base model forward from ``SAMPLING_SOURCE``, saving daily snapshots.
 
     Writes one file per chunk (``config.baserun_path``) holding ``snapshots`` (state at every
@@ -128,7 +128,7 @@ def base_run(n_years=BASE_RUN_YEARS, chunk_years=CHUNK_YEARS, snapshot_every=SNA
 
 
 def load_base_run(n_years=BASE_RUN_YEARS, columns=None, chunk_years=CHUNK_YEARS,
-                  snapshot_every=SNAPSHOT_EVERY, directory=RESULTS_DIR):
+                  snapshot_every=SNAPSHOT_EVERY, directory=DATA_DIR):
     """The base-run snapshots for the first ``n_years``, as one (N, ndim) array.
 
     ``columns`` selects state variables (e.g. ``[PSI_A1]``) to save memory. Every chunk's
@@ -153,7 +153,7 @@ def load_base_run(n_years=BASE_RUN_YEARS, columns=None, chunk_years=CHUNK_YEARS,
 
 
 def load_snapshots(indices, chunk_years=CHUNK_YEARS, snapshot_every=SNAPSHOT_EVERY,
-                   directory=RESULTS_DIR):
+                   directory=DATA_DIR):
     """The full states at the given global snapshot indices, reading only the chunks needed."""
     config, start_steps = SAMPLING_SOURCE
     per_chunk = snapshots_per_chunk(chunk_years, snapshot_every)
@@ -310,7 +310,7 @@ def pick_spaced(candidates, spacing, group=None):
 # 2. Labels and record statistics
 # --------------------------------------------------------------------------- #
 def label_regimes(n_years=BASE_RUN_YEARS, t_days=REGIME_T_DAYS, cutoff=REGIME_CUTOFF,
-                  n_bins=200, directory=RESULTS_DIR, verbose=True):
+                  n_bins=200, directory=DATA_DIR, verbose=True):
     """Label the first ``n_years`` of the base run and write ``config.regimes_path``.
 
     For every candidate T: the running std of psi_a1, the mixture on its logarithm, and the
@@ -370,12 +370,12 @@ def label_regimes(n_years=BASE_RUN_YEARS, t_days=REGIME_T_DAYS, cutoff=REGIME_CU
     return path
 
 
-def load_regimes(n_years=BASE_RUN_YEARS, directory=RESULTS_DIR):
+def load_regimes(n_years=BASE_RUN_YEARS, directory=DATA_DIR):
     config, start_steps = SAMPLING_SOURCE
     return np.load(regimes_path(config, start_steps, 0, n_years, directory))
 
 
-def noise_scale(n_years=BASE_RUN_YEARS, directory=RESULTS_DIR):
+def noise_scale(n_years=BASE_RUN_YEARS, directory=DATA_DIR):
     """Per-variable high-frequency climatological std: the sampling standard's noise and
     whitening scale."""
     return np.asarray(load_regimes(n_years, directory)["hf_std"])
@@ -393,7 +393,7 @@ def shared_noise(snapshot_index, seed_index, n_steps, ndim, seed=21217):
 # --------------------------------------------------------------------------- #
 def available_picks(mode, spacing_k=SPACING_K, min_episode_days=MIN_EPISODE_DAYS,
                     placement="onset", window_steps=0, n_years=BASE_RUN_YEARS,
-                    directory=RESULTS_DIR):
+                    directory=DATA_DIR):
     """Every starting state a mode could use, in order, and the regimes file they came from.
 
     ``mode`` is ``"passive"``, ``"active"`` or ``"both"``. ``window_steps`` is everything a
@@ -435,7 +435,7 @@ def available_picks(mode, spacing_k=SPACING_K, min_episode_days=MIN_EPISODE_DAYS
 
 def starting_states(mode, n=N_SAMPLES, spacing_k=SPACING_K, min_episode_days=MIN_EPISODE_DAYS,
                     placement="onset", window_steps=0, n_years=BASE_RUN_YEARS,
-                    directory=RESULTS_DIR):
+                    directory=DATA_DIR):
     """The first ``n`` of ``available_picks``, with their states and the recipe, as a dict.
 
     ``regime`` is each state's label at its own snapshot (``REGIME_NAMES``): the mode itself

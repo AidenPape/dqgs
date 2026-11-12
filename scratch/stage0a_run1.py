@@ -3,7 +3,7 @@ fits reach c_true?
 
 T_o1, noiseless, c0 = 0, 40 LM iterations, whitened by the high-frequency std, each case once
 with the normal equations and once with QR. Pick indices refer to the 60-state lists of
-``driver_uncertainty_*_n60``. Writes ``results/stage0a_run1.npz``.
+``driver_uncertainty_*_n60``. Writes ``results/data/stage0a_run1.npz``.
 
     python scratch/stage0a_run1.py
 """
@@ -14,7 +14,7 @@ import time
 import numpy as np
 
 from error_discovery.attractor import segments_from_states
-from error_discovery.config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from error_discovery.config import ExperimentConfig, DATA_DIR, steps_to_days
 from error_discovery.discovery import recover
 from error_discovery.experiments.driver_window import DRIVERS
 from error_discovery.models import TwinModels, obs_mask
@@ -68,7 +68,7 @@ def main():
     for i, r in enumerate(rows):
         cost_hist[i, :len(r["cost_hist"])] = r["cost_hist"]
     col = lambda k: np.asarray([r[k] for r in rows])
-    out = os.path.join(RESULTS_DIR, "stage0a_run1.npz")
+    out = os.path.join(DATA_DIR, "stage0a_run1.npz")
     np.savez(out, row=col("row"), mode=col("mode"), pick=col("pick"), regime=col("regime"),
              snapshot=col("snapshot"), window_steps=col("window_steps"),
              window_days=np.asarray([steps_to_days(w) for w in col("window_steps")]),

@@ -18,7 +18,7 @@ import os
 
 import numpy as np
 
-from error_discovery.config import RESULTS_DIR
+from error_discovery.config import DATA_DIR
 from error_discovery.experiments import driver_window
 
 ETA_INDEX = 0                        # eta = 1e-4 in every source
@@ -26,7 +26,7 @@ N_SEEDS = 2
 
 
 def _path(tag):
-    return os.path.join(RESULTS_DIR, f"driver_window_{tag}.npz")
+    return os.path.join(DATA_DIR, f"driver_window_{tag}.npz")
 
 
 def _load(tag):

@@ -82,7 +82,7 @@ from the re-run that followed. They are still not independent: consecutive segme
 apart on one trajectory and the ocean state stays correlated across them, so the spread remains
 a lower bound on sampling variability.
 
-Results -> ``results/driver_window_<tag>.npz``.
+Results -> ``results/data/driver_window_<tag>.npz``.
 """
 
 import os
@@ -92,7 +92,7 @@ import numpy as np
 
 from .. import figstyle
 from ..attractor import get_attractor_ic, build_segments, segments_from_states
-from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+from ..config import (ExperimentConfig, DATA_DIR, FIGURES_DIR, steps_to_days, N_SAMPLES, SPACING_K,
                       MIN_EPISODE_DAYS, ETA_GRID)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
@@ -244,8 +244,8 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
             print(f"[{name:8s}] g={g}  noisy rel_err med={np.nanmedian(rel_noise[idr]):.2e}   "
                   f"[{time.time() - td:.0f}s]")
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    out = os.path.join(RESULTS_DIR, f"driver_window_{tag}.npz")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    out = os.path.join(DATA_DIR, f"driver_window_{tag}.npz")
     saved_name = {"c_hat": "c_hats", "rank": "jrank"}       # as the noiseless arrays are named
     noisy_out = {f"{saved_name.get(k, k)}_noise": v for k, v in noisy.items()}
     np.savez(
@@ -271,7 +271,7 @@ def run(tag="main", drivers=ALL_DRIVERS, n_ic=3, n_seeds=2, lm_iters=40,
 
 
 def _load(tag):
-    return np.load(os.path.join(RESULTS_DIR, f"driver_window_{tag}.npz"), allow_pickle=True)
+    return np.load(os.path.join(DATA_DIR, f"driver_window_{tag}.npz"), allow_pickle=True)
 
 
 def figure(tag="main", eta_index=0):
@@ -323,6 +323,6 @@ def figure(tag="main", eta_index=0):
     axb.legend(frameon=False, fontsize=8)
 
     figstyle.finish(fig, sampling_line(d))
-    out = os.path.join(RESULTS_DIR, f"fig_driver_conditioning_recovery_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_driver_conditioning_recovery_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]

@@ -16,7 +16,7 @@ import os
 import numpy as np
 
 from .. import figstyle
-from ..config import RESULTS_DIR
+from ..config import DATA_DIR, FIGURES_DIR
 from ..figstyle import DPI
 from ..formfit import attractor_traj, twin
 
@@ -48,8 +48,8 @@ def alias_data(n=3000, seed=0):
 def run(n=3000, seed=0):
     """Cache the two distributions so ``figure`` need not re-integrate the attractor."""
     dat = alias_data(n=n, seed=seed)
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "alias.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "alias.npz"),
              **{f"{tag}_{k}": v for tag, sub in dat.items() for k, v in sub.items()})
     for tag, sub in dat.items():
         print(f"{tag:6s} corr(d, m*d) = {sub['corr']:+.3f}   "
@@ -59,7 +59,7 @@ def run(n=3000, seed=0):
 
 def _load():
     """Regroup ``alias.npz`` back into the per-distribution dicts ``run`` saved."""
-    z = np.load(os.path.join(RESULTS_DIR, "alias.npz"))
+    z = np.load(os.path.join(DATA_DIR, "alias.npz"))
     out = {"att": {}, "broad": {}}
     for key in z.files:
         tag, _, name = key.partition("_")
@@ -101,7 +101,7 @@ def figure(save=True):
     ax[2].set_title("(c)", fontsize=10, loc="left")
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_alias.png")
+    out = os.path.join(FIGURES_DIR, "fig_alias.png")
     if save:
         fig.savefig(out, dpi=DPI)
     plt.close(fig)

@@ -39,7 +39,7 @@ from ..formfit import (twin, attractor_traj, transient_traj, true_transient,
                        err_tendency, forcing_recover, library, fit, resid,
                        margin_named, true_term)
 from .. import figstyle
-from ..config import RESULTS_DIR, THRESH, DT
+from ..config import DATA_DIR, FIGURES_DIR, THRESH, DT
 from ..figstyle import DPI, LBL_BBOX
 from ..screening import exchange_image
 
@@ -103,8 +103,8 @@ def governing_law(fracs=None, n=2000, reps=30, seed=0, save=True):
             c, nm = fit(tw, X, m)
             margin[i, rep] = margin_named(resid(tw, c, X, m), nm, true_term(tw))[0]
     if save:
-        os.makedirs(RESULTS_DIR, exist_ok=True)
-        np.savez(os.path.join(RESULTS_DIR, "why_law.npz"),
+        os.makedirs(DATA_DIR, exist_ok=True)
+        np.savez(os.path.join(DATA_DIR, "why_law.npz"),
                  fracs=np.asarray(fracs), r=r, margin=margin)
     print(f"{'frac':>6s} {'driver|m|/std':>13s} {'margin':>9s}")
     for i, f in enumerate(fracs):
@@ -163,8 +163,8 @@ def global_form_validation(n=2000, reps=30, seed=0, window=400, save=True):
         res["alias_fitAtt_testOff"][rep] = _relerr_one(tw, ca[j], aname, Xoff, moff)
     summ = {k: (float(np.median(v)), float(v.std())) for k, v in res.items()}
     if save:
-        os.makedirs(RESULTS_DIR, exist_ok=True)
-        np.savez(os.path.join(RESULTS_DIR, "why_global.npz"),
+        os.makedirs(DATA_DIR, exist_ok=True)
+        np.savez(os.path.join(DATA_DIR, "why_global.npz"),
                  **{k: res[k] for k in keys},
                  alias=np.asarray(alias_names), sel_correct=sel_correct, reps=reps)
     from collections import Counter
@@ -193,8 +193,8 @@ def lyapunov_ics(n_ic=5, block=200, n_blocks=600, drop=120, save=True):
     lam_mean, lam_std = float(lams.mean()), float(lams.std())
     pred_days = float(steps_to_days((1.0 / abs(lam_mean)) / DT)) if lam_mean != 0 else np.inf
     if save:
-        os.makedirs(RESULTS_DIR, exist_ok=True)
-        np.savez(os.path.join(RESULTS_DIR, "lyap_ics.npz"),
+        os.makedirs(DATA_DIR, exist_ok=True)
+        np.savez(os.path.join(DATA_DIR, "lyap_ics.npz"),
                  lambdas=lams, lam_mean=lam_mean, lam_std=lam_std,
                  predictability_days=pred_days, block=block, n_blocks=n_blocks)
     print(f"lambda over {n_ic} ICs: {lams}")
@@ -211,7 +211,7 @@ def figure():
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.6))
 
     # ----- (a) margin governed by the driver's own |mean|/std -------------- #
-    d = np.load(os.path.join(RESULTS_DIR, "why_law.npz"))
+    d = np.load(os.path.join(DATA_DIR, "why_law.npz"))
     r, mg = d["r"], d["margin"]
     a = ax[0]
     xx = np.logspace(-2, 2, 200)
@@ -242,7 +242,7 @@ def figure():
     a.legend(fontsize=7.5, frameon=False, loc="lower left")
 
     # ----- (b) the form is global; identifiability is local ---------------- #
-    g = np.load(os.path.join(RESULTS_DIR, "why_global.npz"))
+    g = np.load(os.path.join(DATA_DIR, "why_global.npz"))
     # bars ordered [in-regime, out-of-regime] for each model
     true_bars = [np.median(g["true_recOff_testOff"]), np.median(g["true_recOff_testAtt"])]
     alias_bars = [np.median(g["alias_fitAtt_testAtt"]), np.median(g["alias_fitAtt_testOff"])]
@@ -271,7 +271,7 @@ def figure():
     b.set_ylim(0, max(alias_bars + true_bars) * 1.25)
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_why.png")
+    out = os.path.join(FIGURES_DIR, "fig_why.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]
 

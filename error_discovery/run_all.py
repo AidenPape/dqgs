@@ -5,11 +5,11 @@ error_discovery.run_all
 
 One-command, reproducible driver for every study in the differentiable
 error-discovery project. Each study writes its results and figures to
-``error_discovery/results/``; everything is seeded.
+``error_discovery/results/`` (arrays in ``data/``, figures in ``figures/``); everything is seeded.
 
 Every study module answers to the same two entry points::
 
-    run(...)     computes, writes .npz to RESULTS_DIR, returns its results
+    run(...)     computes, writes .npz to DATA_DIR, returns its results
     figure(...)  reloads that .npz, draws, returns the list of paths written
 
 ``run`` never draws and ``figure`` never computes, so a figure can be re-rendered

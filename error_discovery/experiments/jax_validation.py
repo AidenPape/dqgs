@@ -23,7 +23,7 @@ jax.config.update("jax_enable_x64", True)
 from qgs_jax.spec import extract_spec                          # noqa: E402
 from qgs_jax import model                                      # noqa: E402
 from .. import figstyle                                        # noqa: E402
-from ..config import NDIM_PER_DAY, DT, RESULTS_DIR, IC_CACHE   # noqa: E402
+from ..config import NDIM_PER_DAY, DT, DATA_DIR, FIGURES_DIR, IC_CACHE   # noqa: E402
 from ..figstyle import DPI                                     # noqa: E402
 
 IDX_PSIA1 = 0          # leading atmospheric streamfunction mode psi_{a,1}
@@ -50,7 +50,7 @@ def run(nsteps=5000, dt=DT):
     traj_jx = np.asarray(
         model.integrate(T_ref, jnp.asarray(ic), dt, nsteps, write_every=1, method="rk4")
     )
-    out = os.path.join(RESULTS_DIR, "jax_validation.npz")
+    out = os.path.join(DATA_DIR, "jax_validation.npz")
     np.savez(out,
              t_days=(np.arange(nsteps) + 1) * dt / NDIM_PER_DAY,
              psi_np=traj_np[:, IDX_PSIA1],
@@ -63,7 +63,7 @@ def run(nsteps=5000, dt=DT):
 def figure():
     plt = figstyle.pyplot()
 
-    d = np.load(os.path.join(RESULTS_DIR, "jax_validation.npz"))
+    d = np.load(os.path.join(DATA_DIR, "jax_validation.npz"))
     t, state_diff = d["t_days"], d["state_diff"]
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 5), sharex=True,
@@ -81,7 +81,7 @@ def figure():
     ax2.set_xlim(t[0], t[-1])
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_jax_validation.png")
+    out = os.path.join(FIGURES_DIR, "fig_jax_validation.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
     print(f"max state divergence over {len(t)} steps: {state_diff.max():.2e}")

@@ -21,7 +21,7 @@ import numpy as np
 
 from .. import figstyle
 from ..models import TwinModels
-from ..config import RESULTS_DIR, EPS
+from ..config import DATA_DIR, FIGURES_DIR, EPS
 from ..figstyle import DPI, LBL_BBOX
 from ..formfit import attractor_traj, err_tendency
 
@@ -93,8 +93,8 @@ def run(noises=(0.0, 0.01, 0.02, 0.05, 0.1, 0.2), n=8000, reps=40,
             for nm, k, _, _ in DECOMP_COMPS:
                 chat[nm][ni, r] = c[names.index("const" if k is None else f"x{k}")]
     if save:
-        os.makedirs(RESULTS_DIR, exist_ok=True)
-        np.savez(os.path.join(RESULTS_DIR, "driver_full.npz"),
+        os.makedirs(DATA_DIR, exist_ok=True)
+        np.savez(os.path.join(DATA_DIR, "driver_full.npz"),
                  noises=np.asarray(noises), eps=EPS, record=record,
                  **{nm: chat[nm] for nm, _, _, _ in DECOMP_COMPS})
     print(f"full error g = theta_a1 + T_o1 + psi_a1 (each eps={EPS}); joint recovery from "
@@ -115,7 +115,7 @@ def figure(save=True):
     coefficient several times the least-determined, lost first as noise grows."""
     plt = figstyle.pyplot()
 
-    d = np.load(os.path.join(RESULTS_DIR, "driver_full.npz"))
+    d = np.load(os.path.join(DATA_DIR, "driver_full.npz"))
     noises, eps = d["noises"], float(d["eps"])
     x = 100.0 * noises
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.5))
@@ -157,7 +157,7 @@ def figure(save=True):
            transform=b.transAxes, fontsize=7.5, color="0.25", va="top", bbox=LBL_BBOX)
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_decomposition.png")
+    out = os.path.join(FIGURES_DIR, "fig_decomposition.png")
     if save:
         fig.savefig(out, dpi=DPI)
     plt.close(fig)

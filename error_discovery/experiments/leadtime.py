@@ -17,7 +17,7 @@ cached to ``initial_conditions/attractor_ic_default_sp800000.npz`` and reused):
    with Levenberg-Marquardt and record recovery error and cond(J^T J).
 5. Noise sweep: for a subset of windows, repeat with observation noise.
 
-Results -> ``results/leadtime_<tag>.npz``.  The headline is the *window of
+Results -> ``results/data/leadtime_<tag>.npz``.  The headline is the *window of
 discoverability*. The 2026-08-27 disjoint-segment re-run left its lower half
 intact and substantially weakened its upper half.
 
@@ -58,7 +58,7 @@ from matplotlib.transforms import blended_transform_factory
 
 from .. import figstyle
 from ..attractor import get_attractor_ic, build_segments, segments_from_states
-from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+from ..config import (ExperimentConfig, DATA_DIR, FIGURES_DIR, steps_to_days, N_SAMPLES, SPACING_K,
                       MIN_EPISODE_DAYS, ETA_GRID)
 from ..figstyle import DPI, LBL_BBOX
 from ..models import TwinModels, obs_mask
@@ -186,8 +186,8 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False,
             print(f"[noise] eta={eta:.0e}  rel_err med over windows="
                   f"{np.nanmedian(rel_noise[ie], axis=(1, 2))}")
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    out = os.path.join(RESULTS_DIR, f"leadtime_{tag}.npz")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    out = os.path.join(DATA_DIR, f"leadtime_{tag}.npz")
     np.savez(
         out,
         windows=np.asarray(windows),
@@ -212,7 +212,7 @@ def run(cfg: ExperimentConfig = None, verbose=True, whiten=False,
 # Figures. Each reloads the .npz above; none of them computes.
 # --------------------------------------------------------------------------- #
 def _load(tag):
-    return np.load(os.path.join(RESULTS_DIR, f"leadtime_{tag}.npz"), allow_pickle=True)
+    return np.load(os.path.join(DATA_DIR, f"leadtime_{tag}.npz"), allow_pickle=True)
 
 
 def fig_recovery_and_conditioning(tag="main"):
@@ -299,7 +299,7 @@ def fig_recovery_and_conditioning(tag="main"):
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
     figstyle.finish(fig, sampling_line(d))
-    out = os.path.join(RESULTS_DIR, f"fig_recovery_conditioning_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_recovery_conditioning_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
@@ -357,7 +357,7 @@ def fig_conditioning_only(tag="main_whiten"):
                       fontsize=9.5, loc="left")
         axb.legend(frameon=False, fontsize=8, loc="center left")
     figstyle.finish(fig, sampling_line(d))
-    out = os.path.join(RESULTS_DIR, f"fig_conditioning_only_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_conditioning_only_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
@@ -380,7 +380,7 @@ def fig_coeff_recovery(tag="main"):
     for ax in axes[1]:
         ax.set_xlabel("optimisation window  [days]")
     figstyle.finish(fig, sampling_line(d))
-    out = os.path.join(RESULTS_DIR, f"fig_coeff_recovery_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_coeff_recovery_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
@@ -408,7 +408,7 @@ def fig_noise(tag="main"):
     ax.set_ylabel(r"$\|\hat c - c_{\rm true}\|/\|c_{\rm true}\|$")
     ax.legend(frameon=False, fontsize=8)
     figstyle.finish(fig, sampling_line(d))
-    out = os.path.join(RESULTS_DIR, f"fig_noise_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_noise_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 

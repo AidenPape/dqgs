@@ -27,11 +27,7 @@ is the maximum `|mean|/std` over all state modes.
 
 ## Install
 
-```bash
-conda activate dqgs                  # any env with python >= 3.9
-pip install --no-deps qgs==1.0.0     # upstream declares ipython+jupyter; unused here
-pip install -e ..                    # installs this repo and its remaining dependencies
-```
+See the repository [README](../README.md), "Install".
 
 ## Layout
 
@@ -51,6 +47,16 @@ The package is in two halves: **machinery** at the top level, **studies** in
 | `screening.py`| the `\|mean\|/std` diagnostic and the restricted-vs-full quadratic library |
 | `figstyle.py` | `DPI`, `LBL_BBOX`, and `pyplot()` (the headless-backend helper) |
 | `run_all.py`  | one-command launcher; the `STUDIES` table is the index of what exists |
+
+### Results
+
+`results/` (`config.RESULTS_DIR`) holds three folders: `data/` (`config.DATA_DIR`, every
+`.npz`, not tracked), `figures/` (`config.FIGURES_DIR`, every `.png`, tracked because the
+manuscript includes them; old figures in `figures/deprecated/`) and `logs/` (job logs and
+`.status` files from shell redirects, not tracked). Until 2026-11-12 everything sat flat in
+`results/`; notes and plans from before then use the flat paths: `results/x.npz` is now
+`results/data/x.npz`, `results/fig_x.png` is `results/figures/fig_x.png`, `results/x.log` is
+`results/logs/x.log`, `results/deprecated/` is `results/figures/deprecated/`.
 
 ### Studies — `experiments/`, one question each
 
@@ -110,7 +116,7 @@ repeating the computation:
 
 ```python
 from error_discovery.experiments import form
-form.figure()                   # redraws from results/form_results.npz
+form.figure()                   # redraws from results/data/form_results.npz
 ```
 
 Everything is seeded. The base model is the `default` parameter set of
@@ -119,7 +125,7 @@ Everything is seeded. The base model is the `default` parameter set of
 ### Spun-up states
 
 A spun-up state is saved in `initial_conditions/` (`config.IC_DIR`, tracked in git, unlike
-`results/*.npz`) as `attractor_ic_<config>_sp<steps>.npz`:
+`results/data/`) as `attractor_ic_<config>_sp<steps>.npz`:
 
 - `<config>` is a `PARAM_SETS` name, which fixes both the parameters and the truncation. A
   `-ndim<N>` suffix marks a state at a dimension other than that set's own
@@ -149,7 +155,7 @@ New runs of the five segment studies (`leadtime`, `driver_window`, `driver_mode`
 `driver_uncertainty`, `sparsity`) can take their starting states from a long base run instead
 of the 800k state: `--set sampling=passive`, `active` or `both` (default `legacy`, the original
 design, which every `*_main.npz` uses). The design and every choice in it are in
-`plans/sampling.md`, two levels up. Files, all in `results/`, named by functions in `config.py`:
+`plans/sampling.md`, two levels up. Files, all in `results/data/`, named by functions in `config.py`:
 
 - `baserun_<config>_sp<steps>_yr<start>-<end>.npz` (`config.baserun_path`): one 1,000-yr chunk of
   the base-model run forward from `attractor_ic_<config>_sp<steps>.npz`, the full state once per

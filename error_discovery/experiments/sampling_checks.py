@@ -48,7 +48,7 @@ drafts, to be revised after an exploratory pass over the data.
   to 1.2e-2. Smallest high-frequency std 1.7e-11 (psi_o8), so 1/scale spans a factor 8.6e8
   across the 36 variables.
 
-Results -> ``results/sampling_checks_<tag>.npz``.
+Results -> ``results/data/sampling_checks_<tag>.npz``.
 """
 
 import os
@@ -56,7 +56,7 @@ import os
 import numpy as np
 
 from .. import figstyle
-from ..config import RESULTS_DIR, BASE_RUN_YEARS, DAYS_PER_YEAR, MIN_EPISODE_DAYS
+from ..config import DATA_DIR, FIGURES_DIR, BASE_RUN_YEARS, DAYS_PER_YEAR, MIN_EPISODE_DAYS
 from ..figstyle import DPI
 from ..sampling import (base_run, label_regimes as label, load_base_run, load_regimes,
                         regime_labels, episodes, onsets, available_picks)
@@ -139,7 +139,7 @@ def run(n_years=BASE_RUN_YEARS, n_blocks=10, cross_start_year=1000, cross_years=
     on_p = np.asarray([i for i in onsets(lab, -1, min_len) if i0 <= i < i1], dtype=int)
     on_a = np.asarray([i for i in onsets(lab, 1, min_len) if i0 <= i < i1], dtype=int)
 
-    out = os.path.join(RESULTS_DIR, f"sampling_checks_{tag}.npz")
+    out = os.path.join(DATA_DIR, f"sampling_checks_{tag}.npz")
     np.savez(
         out, n_years=n_years, snapshot_days=dd, std=std, hf_std=reg["hf_std"],
         tau_int_years=tau_years, tau_err_years=reg["tau_err"] * dd / DAYS_PER_YEAR,
@@ -173,7 +173,7 @@ def run(n_years=BASE_RUN_YEARS, n_blocks=10, cross_start_year=1000, cross_years=
 
 
 def _load(tag):
-    return np.load(os.path.join(RESULTS_DIR, f"sampling_checks_{tag}.npz"), allow_pickle=True)
+    return np.load(os.path.join(DATA_DIR, f"sampling_checks_{tag}.npz"), allow_pickle=True)
 
 
 def figure(tag="main"):
@@ -219,7 +219,7 @@ def _fig_blocks(plt, d, tag):
                  f"{float(d['block_years']):,.0f} yr; error bars assume independent block "
                  f"means (largest tau_int {float(np.max(d['tau_int_years'])):,.1f} yr)",
                  fontsize=10)
-    out = os.path.join(RESULTS_DIR, f"fig_sampling_blockcheck_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_sampling_blockcheck_{tag}.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
@@ -251,7 +251,7 @@ def _fig_T(plt, d, tag):
         ax[j].set_xlabel("log(running std of psi_a1)")
     ax[0].set_ylabel("density")
     ax[0].legend(frameon=False, fontsize=8)
-    out = os.path.join(RESULTS_DIR, f"fig_sampling_T_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_sampling_T_{tag}.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out
@@ -279,7 +279,7 @@ def _fig_cross(plt, d, tag):
     ax[-1].set_xlabel("model years since the 1e9-step state")
     ax[0].set_title("Regime labels against the signals (shading: active, passive, flagged)",
                     fontsize=10)
-    out = os.path.join(RESULTS_DIR, f"fig_sampling_crosscheck_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_sampling_crosscheck_{tag}.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return out

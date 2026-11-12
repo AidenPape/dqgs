@@ -14,7 +14,7 @@ normal-equation fit, "reached" is run 1's rel_err < 1e-3.
 
 Fig A1 / A2: long windows, A1 `both` #1 at its 5 windows, A2 the other two states. Fig B1 / B2:
 short windows, one row per window; B1 the line from c = 0, B2 the weakest-direction lines.
-Writes ``results/stage0a_run3.npz`` and ``results/stage0a_run3_{A1,A2,B1,B2}.png``. A first pass with the residual jitted, as ``lm_fit``
+Writes ``results/data/stage0a_run3.npz`` and ``results/figures/stage0a_run3_{A1,A2,B1,B2}.png``. A first pass with the residual jitted, as ``lm_fit``
 evaluates it, is recorded in the fitting log (step 9).
 
     python scratch/stage0a_run3.py          # ~1.1 h (est.)
@@ -29,7 +29,7 @@ import numpy as np
 
 from error_discovery import figstyle
 from error_discovery.attractor import segments_from_states
-from error_discovery.config import ExperimentConfig, RESULTS_DIR, steps_to_days
+from error_discovery.config import ExperimentConfig, DATA_DIR, FIGURES_DIR, steps_to_days
 from error_discovery.discovery import make_residual, obs_indices, residual_jacobian
 from error_discovery.experiments.driver_window import DRIVERS
 from error_discovery.models import TwinModels, obs_mask
@@ -43,7 +43,7 @@ LONG = [(0, "both", 1, (1280, 5120, 8000, 16000, 24000)),     # Fig A: (row, lis
         (1, "both", 53, (8000,))]
 SHORT = [(0, 320, (("passive", 40), ("both", 35), ("passive", 20))),   # Fig B: (row, window,
          (1, 1280, (("both", 16), ("passive", 14), ("active", 33)))]   # cases)
-OUT = os.path.join(RESULTS_DIR, "stage0a_run3")
+OUT = "stage0a_run3"           # file stem: .npz in DATA_DIR, .png in FIGURES_DIR
 
 
 def _cases():
@@ -78,7 +78,7 @@ def main(a_step=A_STEP, t_step=T_STEP, out=OUT):
     oidx = obs_indices(mask)
     scale = noise_scale()
     wchan = 1.0 / np.asarray(scale)[oidx]
-    run1 = np.load(os.path.join(RESULTS_DIR, "stage0a_run1.npz"))
+    run1 = np.load(os.path.join(DATA_DIR, "stage0a_run1.npz"))
     c_true = np.asarray(tw.c_true)
     a = np.linspace(0.0, A_MAX, int(round(A_MAX / a_step)) + 1)
     t = np.linspace(-T_MAX, T_MAX, int(round(2 * T_MAX / t_step)) + 1)
@@ -134,11 +134,11 @@ def main(a_step=A_STEP, t_step=T_STEP, out=OUT):
                      f"{t_hat[1]:+.4f} (at c_hat); sigma_min {s_true[-1]:.2e} / {s_hat[-1]:.2e}")
         print(line, flush=True)
 
-    np.savez(out + ".npz", a=a, t=t, c_true=c_true, eps=cfg.eps,
+    np.savez(os.path.join(DATA_DIR, out + ".npz"), a=a, t=t, c_true=c_true, eps=cfg.eps,
              window_days=np.asarray([steps_to_days(c[5]) for c in cases]),
              **{k: np.asarray(v) for k, v in out_case.items()},
              **{f"b_{k}": np.asarray(v) for k, v in out_b.items()})
-    print(f"wrote {out}.npz")
+    print(f"wrote {os.path.join(DATA_DIR, out)}.npz")
 
 
 def _title(d, n):
@@ -195,13 +195,14 @@ def _weakest_figure(d, path):
 
 
 def figure(out=OUT):
-    d = np.load(out + ".npz")
+    d = np.load(os.path.join(DATA_DIR, out + ".npz"))
+    fig = os.path.join(FIGURES_DIR, out)
     a, b = (np.flatnonzero(d["figure"] == f) for f in "AB")
     a1, a2 = a[d["row"][a] == 0], a[d["row"][a] == 1]
-    return [_line_figure(d, a1, (1, len(a1)), out + "_A1.png"),
-            _line_figure(d, a2, (1, len(a2)), out + "_A2.png"),
-            _line_figure(d, b, (2, 3), out + "_B1.png"),
-            _weakest_figure(d, out + "_B2.png")]
+    return [_line_figure(d, a1, (1, len(a1)), fig + "_A1.png"),
+            _line_figure(d, a2, (1, len(a2)), fig + "_A2.png"),
+            _line_figure(d, b, (2, 3), fig + "_B1.png"),
+            _weakest_figure(d, fig + "_B2.png")]
 
 
 if __name__ == "__main__":

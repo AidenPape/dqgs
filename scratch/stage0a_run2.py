@@ -5,7 +5,7 @@ For each case, J is the residual Jacobian at c_true (same whitening as run 1), J
 error is split over the right singular vectors: share_i = (e . v_i)^2 / |e|^2, so share of the
 weakest (last) direction = cos^2 of the angle between e and v_min. Coefficient space is the raw
 one (const, theta_a1, T_o1, psi_a1). c_hat is run 1's normal-equation fit.
-Writes ``results/stage0a_run2.npz``.
+Writes ``results/data/stage0a_run2.npz``.
 
     python scratch/stage0a_run2.py
 """
@@ -15,7 +15,7 @@ import os
 import numpy as np
 
 from error_discovery.attractor import segments_from_states
-from error_discovery.config import ExperimentConfig, RESULTS_DIR
+from error_discovery.config import ExperimentConfig, DATA_DIR
 from error_discovery.discovery import residual_jacobian
 from error_discovery.experiments.driver_window import DRIVERS
 from error_discovery.models import TwinModels, obs_mask
@@ -30,7 +30,7 @@ def main():
     tw = TwinModels(cfg.eps, DRIVERS["T_o1"])
     mask = obs_mask(tw.ndim, tw.spec.variables_range, cfg.obs)
     scale = noise_scale()
-    run1 = np.load(os.path.join(RESULTS_DIR, "stage0a_run1.npz"))
+    run1 = np.load(os.path.join(DATA_DIR, "stage0a_run1.npz"))
     c_true = np.asarray(tw.c_true)
 
     out = {k: [] for k in ("mode", "pick", "regime", "window_steps", "c_hat", "error",
@@ -55,7 +55,7 @@ def main():
               f"{np.array2string(share, precision=4)}  angle to v_min {angle:.2f} deg",
               flush=True)
 
-    path = os.path.join(RESULTS_DIR, "stage0a_run2.npz")
+    path = os.path.join(DATA_DIR, "stage0a_run2.npz")
     np.savez(path, c_true=c_true, **{k: np.asarray(v) for k, v in out.items()})
     print(f"wrote {path}")
 

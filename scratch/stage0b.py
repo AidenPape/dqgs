@@ -5,8 +5,8 @@
 (``eta_grid=()``), every other knob at its default: 5 drivers, the 13 windows 0.45-89.7 d,
 40 LM iterations, c0 = 0, normal equations, whitened by the high-frequency std. A fit reached
 c_true iff rel_err < 1e-3 (0a pass threshold). Writes
-``results/driver_window_stage0b_<regime>.npz``, prints the counts and draws
-``results/stage0b.png`` and the table as ``results/stage0b_table.png``.
+``results/data/driver_window_stage0b_<regime>.npz``, prints the counts and draws
+``results/figures/stage0b.png`` and the table as ``results/figures/stage0b_table.png``.
 
     python scratch/stage0b.py            # full run, ~4-5 h (est.)
     python scratch/stage0b.py smoke      # T_o1, passive, 2 states: checks the code only
@@ -19,7 +19,7 @@ import sys
 import numpy as np
 
 from error_discovery import figstyle
-from error_discovery.config import RESULTS_DIR
+from error_discovery.config import DATA_DIR, FIGURES_DIR
 from error_discovery.experiments import driver_window
 
 REGIMES = ("passive", "active", "both")
@@ -28,7 +28,7 @@ FAIL = 1e-3                          # a fit failed iff rel_err >= FAIL
 
 
 def _path(tag, regime):
-    return os.path.join(RESULTS_DIR, f"driver_window_{tag}_{regime}.npz")
+    return os.path.join(DATA_DIR, f"driver_window_{tag}_{regime}.npz")
 
 
 def run(tag="stage0b", regimes=REGIMES, n_states=N_STATES, drivers=driver_window.ALL_DRIVERS):
@@ -68,7 +68,7 @@ def figure(tag="stage0b", regimes=REGIMES):
     axes[0, 0].set_ylabel(f"states reached c_true (of {n})")
     axes[0, -1].legend(fontsize=8, loc="lower right")
     figstyle.finish(fig, f"Stage 0b: noiseless fits reaching c_true (rel_err < {FAIL:g})")
-    out = os.path.join(RESULTS_DIR, f"{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"{tag}.png")
     fig.savefig(out, dpi=figstyle.DPI)
     return [out]
 
@@ -96,7 +96,7 @@ def table_figure(tag="stage0b", regimes=REGIMES):
         t[0, j].set_text_props(weight="bold")
     figstyle.finish(fig, f"Stage 0b: states reaching c_true (rel_err < {FAIL:g}) of "
                          f"{d0['rel_err'].shape[2]}; columns = window (days)")
-    out = os.path.join(RESULTS_DIR, f"{tag}_table.png")
+    out = os.path.join(FIGURES_DIR, f"{tag}_table.png")
     fig.savefig(out, dpi=figstyle.DPI, bbox_inches="tight")
     return [out]
 

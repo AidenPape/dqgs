@@ -26,7 +26,7 @@ is the over-complete-library analogue of SINDy/PDE-FIND recovery, and it closes 
 loop: the boundary is a property of the sampling distribution, and leaving the
 attractor removes it even with the adversarial complete library.
 
-Results -> results/overcomplete_results.npz; figure -> results/fig_overcomplete.png.
+Results -> results/data/overcomplete_results.npz; figure -> results/figures/fig_overcomplete.png.
 """
 
 import os
@@ -35,7 +35,7 @@ import numpy as np
 from .. import figstyle
 from ..formfit import twin, attractor_traj, transient_traj, true_transient
 from ..screening import identifiable_count, max_mean_over_std
-from ..config import RESULTS_DIR, EPS
+from ..config import DATA_DIR, FIGURES_DIR, EPS
 from ..figstyle import DPI
 
 
@@ -63,8 +63,8 @@ def run(n=4000, seed=0, verbose=True):
             print(f"[{name:28s}] max|mean|/std={mm:8.1f}  full-library identifiable={nf:2d}/{tw.ndim}  "
                   f"median margin={np.median(margins):+.3f}")
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "overcomplete_results.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "overcomplete_results.npz"),
              names=np.asarray(list(rows)), ndim=tw.ndim, eps=EPS,
              max_meanstd=np.asarray([rows[k]["max_meanstd"] for k in rows]),
              ident_full=np.asarray([rows[k]["ident_full"] for k in rows]),
@@ -75,7 +75,7 @@ def run(n=4000, seed=0, verbose=True):
 
 def figure():
     plt = figstyle.pyplot()
-    d = np.load(os.path.join(RESULTS_DIR, "overcomplete_results.npz"), allow_pickle=True)
+    d = np.load(os.path.join(DATA_DIR, "overcomplete_results.npz"), allow_pickle=True)
     names = [n.decode() if isinstance(n, bytes) else str(n) for n in d["names"]]
     ndim = int(d["ndim"])
     short = [n.replace(" (", "\n(") for n in names]
@@ -97,7 +97,7 @@ def figure():
     # tight_layout first, then reserve extra bottom room for the per-category sub-labels
     fig.tight_layout()
     fig.subplots_adjust(bottom=0.26)
-    out = os.path.join(RESULTS_DIR, "fig_overcomplete.png")
+    out = os.path.join(FIGURES_DIR, "fig_overcomplete.png")
     fig.savefig(out, dpi=DPI)
     plt.close(fig)
     return [out]

@@ -20,7 +20,7 @@ import numpy as np
 
 from .. import figstyle
 from ..models import TwinModels
-from ..config import RESULTS_DIR, THRESH, EPS
+from ..config import DATA_DIR, FIGURES_DIR, THRESH, EPS
 from ..figstyle import DPI
 from ..formfit import attractor_traj, err_tendency, fit, resid, margin_named
 
@@ -60,8 +60,8 @@ def run(Ns=(2000, 4000, 8000, 20000, 40000, 80000), save=True):
             margin[di, ni] = margin_named(resid(tw, c, X, m), nm, tname)[0]
             rr[di, ni] = float(abs(X[:, didx].mean()) / X[:, didx].std())
     if save:
-        os.makedirs(RESULTS_DIR, exist_ok=True)
-        np.savez(os.path.join(RESULTS_DIR, "driver_record.npz"),
+        os.makedirs(DATA_DIR, exist_ok=True)
+        np.savez(os.path.join(DATA_DIR, "driver_record.npz"),
                  Ns=np.asarray(Ns), margin=margin, meanstd=rr,
                  names=np.asarray([d[0] for d in RL_DRIVERS]),
                  # panel (b) shows these two distributions at the longest record;
@@ -82,7 +82,7 @@ def figure(save=True):
     pinned ~40 std from zero, the atmospheric-circulation driver explores a broad range."""
     plt = figstyle.pyplot()
 
-    d = np.load(os.path.join(RESULTS_DIR, "driver_record.npz"), allow_pickle=True)
+    d = np.load(os.path.join(DATA_DIR, "driver_record.npz"), allow_pickle=True)
     Ns, margin = d["Ns"], d["margin"]
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.5))
 
@@ -125,7 +125,7 @@ def figure(save=True):
     b.legend(fontsize=8, frameon=False, loc="upper right")
 
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_driver.png")
+    out = os.path.join(FIGURES_DIR, "fig_driver.png")
     if save:
         fig.savefig(out, dpi=DPI)
     plt.close(fig)

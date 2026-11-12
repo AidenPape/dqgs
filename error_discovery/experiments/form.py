@@ -26,7 +26,7 @@ import numpy as np
 import jax
 
 from .. import figstyle
-from ..config import RESULTS_DIR, EPS
+from ..config import DATA_DIR, FIGURES_DIR, EPS
 from ..figstyle import DPI
 from ..formfit import (attractor_traj, transient_traj, true_transient, twin,
                        err_tendency, fd_tendency, forcing_recover,
@@ -132,8 +132,8 @@ def e5(window=400, reps=30, seed=4):
 # --------------------------------------------------------------------------- #
 def run():
     d1, d2, d3, d5 = e1(), e2(), e3(), e5()
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "form_results.npz"),
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "form_results.npz"),
              **{f"e1_{k}": v for k, v in d1.items()},
              **{f"e2_{k}": v for k, v in d2.items()},
              **{f"e3_{k}": v for k, v in d3.items()},
@@ -147,7 +147,7 @@ def run():
 
 def _load_form():
     """Regroup ``form_results.npz`` back into the per-experiment dicts ``run`` saved."""
-    z = np.load(os.path.join(RESULTS_DIR, "form_results.npz"))
+    z = np.load(os.path.join(DATA_DIR, "form_results.npz"))
     d = {"e1": {}, "e2": {}, "e3": {}, "e5": {}}
     for key in z.files:
         exp, _, name = key.partition("_")
@@ -175,7 +175,7 @@ def figure():
     ax[1].set_xlabel("off-attractor (transient) fraction of training data")
     ax[1].set_ylabel("truth margin over best wrong form")
     ax[1].set_title("(b)", fontsize=10, loc="left")
-    ident = os.path.join(RESULTS_DIR, "fig_form_identifiability.png")
+    ident = os.path.join(FIGURES_DIR, "fig_form_identifiability.png")
     fig.tight_layout(); fig.savefig(ident, dpi=DPI)
     plt.close(fig)
 
@@ -187,7 +187,7 @@ def figure():
     ax.set_xlabel("observation noise (leftmost = noiseless)")
     ax.set_ylabel("P(recover T$_{o,1}$ as top term)")
     ax.legend(frameon=False, fontsize=9)
-    disc = os.path.join(RESULTS_DIR, "fig_form_discovery.png")
+    disc = os.path.join(FIGURES_DIR, "fig_form_discovery.png")
     fig.tight_layout(); fig.savefig(disc, dpi=DPI)
     plt.close(fig)
     return [ident, disc]

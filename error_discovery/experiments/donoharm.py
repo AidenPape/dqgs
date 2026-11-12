@@ -38,7 +38,7 @@ The regression is exact in the coefficients (m(x) = sum_j c_j g_j(x) (E x)), so 
 normal matrix is the weighted Gram G_jk = sum_s |E x_s|^2 g_j(x_s) g_k(x_s); the
 L1 path is solved by coordinate descent on the standardized Gram.
 
-Results -> results/donoharm_results.npz; figure -> results/fig_donoharm.png.
+Results -> results/data/donoharm_results.npz; figure -> results/figures/fig_donoharm.png.
 """
 
 import os
@@ -47,7 +47,7 @@ import numpy as np
 from .. import figstyle
 from ..formfit import twin, attractor_traj, true_transient
 from ..screening import candidate_library, exchange_image, max_mean_over_std
-from ..config import RESULTS_DIR, EPS
+from ..config import DATA_DIR, FIGURES_DIR, EPS
 from ..figstyle import DPI
 
 
@@ -149,8 +149,8 @@ def run(n=4000, seed=0, verbose=True):
                   f"in-regime residual={gen[label]['resid_in']:.3f}  "
                   f"cross-regime (held-out) residual={gen[label]['resid_cross']:.2f}")
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    np.savez(os.path.join(RESULTS_DIR, "donoharm_results.npz"), eps=EPS, k=k,
+    os.makedirs(DATA_DIR, exist_ok=True)
+    np.savez(os.path.join(DATA_DIR, "donoharm_results.npz"), eps=EPS, k=k,
              **{f"{lab}_{key}": np.asarray(val) for lab, s in res.items()
                 for key, val in s.items()},
              gen_labels=np.asarray(list(gen)),
@@ -162,7 +162,7 @@ def run(n=4000, seed=0, verbose=True):
 
 def figure():
     plt = figstyle.pyplot()
-    d = np.load(os.path.join(RESULTS_DIR, "donoharm_results.npz"), allow_pickle=True)
+    d = np.load(os.path.join(DATA_DIR, "donoharm_results.npz"), allow_pickle=True)
     eps = float(d["eps"])
     fig, ax = plt.subplots(1, 2, figsize=(9.5, 4))
     styles = {"attractor": ("C3", "attractor (climatology)"),
@@ -198,7 +198,7 @@ def figure():
     ax[1].set_ylim(0, max(d["gen_resid_cross"]) * 1.32 + 0.1)
     ax[1].legend(frameon=False, fontsize=8, loc="upper right")
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, "fig_donoharm.png")
+    out = os.path.join(FIGURES_DIR, "fig_donoharm.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return [out]
 

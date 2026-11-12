@@ -30,7 +30,7 @@ versus (a) observation-noise level at a fixed window and (b) window length at a
 fixed noise level, plus the oracle identifiability floor (regression of the
 exact error tendency, which recovers the truth to machine precision).
 
-Results -> ``results/sparsity_<tag>.npz``.
+Results -> ``results/data/sparsity_<tag>.npz``.
 """
 
 import os
@@ -39,7 +39,7 @@ import time
 import numpy as np
 import jax.numpy as jnp
 
-from ..config import (ExperimentConfig, RESULTS_DIR, steps_to_days, N_SAMPLES, SPACING_K,
+from ..config import (ExperimentConfig, DATA_DIR, FIGURES_DIR, steps_to_days, N_SAMPLES, SPACING_K,
                       MIN_EPISODE_DAYS, ETA_GRID)
 from ..models import TwinModels, obs_mask
 from ..discovery import rollout, recover
@@ -153,8 +153,8 @@ def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
             mn = np.nanmedian(rel_noise[io], axis=(1, 2))
             print(f"[obs={obs:6s}] median rel_err vs noise={np.array2string(mn, precision=3)}")
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    out = os.path.join(RESULTS_DIR, f"sparsity_{tag}.npz")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    out = os.path.join(DATA_DIR, f"sparsity_{tag}.npz")
     np.savez(
         out,
         obs_kinds=np.asarray(OBS_KINDS),
@@ -179,7 +179,7 @@ def run(tag="sparsity", n_ic=4, n_seeds=4, lm_iters=12,
 # Figures. Each reloads the .npz above; none of them computes.
 # --------------------------------------------------------------------------- #
 def _load_sparsity(tag):
-    return np.load(os.path.join(RESULTS_DIR, f"sparsity_{tag}.npz"), allow_pickle=True)
+    return np.load(os.path.join(DATA_DIR, f"sparsity_{tag}.npz"), allow_pickle=True)
 
 
 _OBS_LABEL = {"full": "full (36)", "atmos": "atmosphere (20)",
@@ -217,7 +217,7 @@ def fig_sparsity_noise(tag="sparsity"):
     ax.text(0.985, 0.02, f"oracle (exact tendency) ≈ {floor:.0e} — off scale below",
             transform=ax.transAxes, fontsize=7.5, style="italic", color="0.4", ha="right")
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, f"fig_sparsity_noise_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_sparsity_noise_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 
@@ -239,7 +239,7 @@ def fig_sparsity_window(tag="sparsity"):
     ax.set_title(fr"Discovery vs window at fixed noise $\eta={eta:.0e}$")
     ax.legend(frameon=False, fontsize=8)
     fig.tight_layout()
-    out = os.path.join(RESULTS_DIR, f"fig_sparsity_window_{tag}.png")
+    out = os.path.join(FIGURES_DIR, f"fig_sparsity_window_{tag}.png")
     fig.savefig(out, dpi=DPI); plt.close(fig)
     return out
 

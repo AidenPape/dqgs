@@ -38,7 +38,7 @@ from qgs_jax import assemble, model
 from qgs_jax.spec import extract_spec
 
 from .. import figstyle
-from ..config import DT, RESULTS_DIR
+from ..config import DT, DATA_DIR, FIGURES_DIR
 
 # The tuned parameters, and the factor each is multiplied by before tuning starts.
 # Two frictions and one radiative coupling: enough to be a genuine three-parameter
@@ -46,7 +46,7 @@ from ..config import DT, RESULTS_DIR
 TUNED = ("kd", "kdp", "Lpa")
 CORRUPT = (1.30, 0.70, 1.25)
 
-_NPZ = os.path.join(RESULTS_DIR, "param_tuning.npz")
+_NPZ = os.path.join(DATA_DIR, "param_tuning.npz")
 
 
 def run(window=40, n_windows=6, spinup=40_000, gap=2_000, n_iters=300,
@@ -114,7 +114,7 @@ def run(window=40, n_windows=6, spinup=40_000, gap=2_000, n_iters=300,
     z_hist = np.array(z_hist)
     relerr = np.abs(np.exp(z_hist) - 1.0)          # exp(z) = theta / theta_true
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
     np.savez(_NPZ, z=z_hist, loss=np.array(loss_hist), grad=np.array(grad_hist),
              step=np.array(step_hist), tuned=np.array(TUNED), corrupt=np.array(CORRUPT),
              window=window, n_windows=n_windows, spinup=spinup, gap=gap,
@@ -151,7 +151,7 @@ def figure():
     ax.legend(frameon=False, fontsize=9)
     fig.tight_layout()
 
-    out = os.path.join(RESULTS_DIR, "fig_param_tuning.png")
+    out = os.path.join(FIGURES_DIR, "fig_param_tuning.png")
     fig.savefig(out, dpi=figstyle.DPI)
     plt.close(fig)
     return [out]

@@ -31,6 +31,8 @@ def days_to_steps(days):
 # --- where results live (kept beside the code for easy re-runs) ------------- #
 _HERE = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(_HERE, "results")
+DATA_DIR = os.path.join(RESULTS_DIR, "data")          # .npz outputs, not tracked
+FIGURES_DIR = os.path.join(RESULTS_DIR, "figures")    # .png, tracked: the manuscript includes them
 IC_DIR = os.path.join(_HERE, "initial_conditions")    # spun-up states, tracked in git
 
 
@@ -66,7 +68,7 @@ MIN_EPISODE_DAYS = 365.25           # a regime run counts as an episode only if 
 ETA_GRID = (1e-4, 1e-3, 1e-2, 1e-1)    # noise levels x high-frequency std, sampled modes
 
 
-def baserun_path(config, start_steps, yr0, yr1, directory=RESULTS_DIR):
+def baserun_path(config, start_steps, yr0, yr1, directory=DATA_DIR):
     """Path of one base-run chunk: ``baserun_<config>_sp<steps>_yr<yr0>-<yr1>.npz``.
 
     ``config`` and ``start_steps`` name the spun-up state the run starts from (``ic_path``);
@@ -76,7 +78,7 @@ def baserun_path(config, start_steps, yr0, yr1, directory=RESULTS_DIR):
                                    f"_yr{int(yr0):05d}-{int(yr1):05d}.npz")
 
 
-def regimes_path(config, start_steps, yr0, yr1, directory=RESULTS_DIR):
+def regimes_path(config, start_steps, yr0, yr1, directory=DATA_DIR):
     """Path of the regime labels and record statistics for base-run years ``yr0``-``yr1``."""
     return os.path.join(directory, f"regimes_{config}_sp{int(start_steps)}"
                                    f"_yr{int(yr0):05d}-{int(yr1):05d}.npz")
