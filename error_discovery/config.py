@@ -31,9 +31,10 @@ def days_to_steps(days):
 # --- where results live (kept beside the code for easy re-runs) ------------- #
 _HERE = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(_HERE, "results")
+IC_DIR = os.path.join(_HERE, "initial_conditions")    # spun-up states, tracked in git
 
 
-def ic_path(config, steps, directory=RESULTS_DIR):
+def ic_path(config, steps, directory=IC_DIR):
     """Path of a spun-up state: ``attractor_ic_<config>_sp<steps>.npz``.
 
     ``config`` is a ``qgs_jax.spec.PARAM_SETS`` name, which fixes both the parameters and the

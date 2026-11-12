@@ -118,7 +118,8 @@ Everything is seeded. The base model is the `default` parameter set of
 
 ### Spun-up states
 
-A spun-up state is saved as `attractor_ic_<config>_sp<steps>.npz`:
+A spun-up state is saved in `initial_conditions/` (`config.IC_DIR`, tracked in git, unlike
+`results/*.npz`) as `attractor_ic_<config>_sp<steps>.npz`:
 
 - `<config>` is a `PARAM_SETS` name, which fixes both the parameters and the truncation. A
   `-ndim<N>` suffix marks a state at a dimension other than that set's own
@@ -131,7 +132,7 @@ Build names with `config.ic_path(config, steps)`, never by hand. Files written b
 `get_attractor_ic` and `spin_up` store the recipe that produced them, and neither loader uses
 a file whose recipe does not match: `load_spun_up_ic` raises, `get_attractor_ic` rebuilds.
 
-Every study starts from `results/attractor_ic_default_sp800000.npz` (800,000 steps, 24.6 yr,
+Every study starts from `initial_conditions/attractor_ic_default_sp800000.npz` (800,000 steps, 24.6 yr,
 seed 1), read through `get_attractor_ic`. Do not pass a non-default spin-up to
 `get_attractor_ic`: it overwrites that shared cache. Delete the file to rebuild.
 

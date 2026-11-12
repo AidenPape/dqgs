@@ -52,8 +52,8 @@ import numpy as np
 import jax.numpy as jnp
 
 from .. import figstyle
-from ..config import (RESULTS_DIR, DT, NDIM_PER_DAY, STEPS_PER_DAY, DAYS_PER_YEAR, IC_SEED,
-                      IC_SCALE, ExperimentConfig, ic_path)
+from ..config import (RESULTS_DIR, IC_DIR, DT, NDIM_PER_DAY, STEPS_PER_DAY, DAYS_PER_YEAR,
+                      IC_SEED, IC_SCALE, ExperimentConfig, ic_path)
 from ..discovery import (lyapunov_spectrum, running_exponents, blocking_error,
                          kolmogorov_entropy, kaplan_yorke_dim)
 
@@ -130,7 +130,7 @@ def _spun_up_ic(name, T):
     t = time.time()
     x0 = jnp.asarray(np.random.default_rng(IC_SEED).standard_normal(ndim) * IC_SCALE)
     x = np.asarray(jm.integrate_final(T, x0, DT, cfg.spinup_steps))
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(IC_DIR, exist_ok=True)
     np.savez(path, x=x, ndim=ndim, spinup_steps=cfg.spinup_steps, ic_seed=IC_SEED, dt=DT)
     print(f"[ic]    {name}: spun up {cfg.spinup_steps} steps ({time.time() - t:.0f}s)")
     return x

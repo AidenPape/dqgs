@@ -5,7 +5,7 @@ error_discovery.attractor
 The spun-up attractor state every study starts from, the truth segments the
 lead-time sweep slices out of it, and the long spin-up.
 
-The 800k-step spin-up is cached to ``results/attractor_ic_default_sp800000.npz`` along
+The 800k-step spin-up is cached to ``initial_conditions/attractor_ic_default_sp800000.npz`` along
 with the recipe that produced it. Every figure's comparability rests on that one initial
 condition: **do not clobber the cache, and do not pass a non-default spin-up.**
 
@@ -22,7 +22,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from .config import (RESULTS_DIR, IC_CACHE, IC_SEED, IC_SCALE, DT, STEPS_PER_DAY,
+from .config import (IC_DIR, IC_CACHE, IC_SEED, IC_SCALE, DT, STEPS_PER_DAY,
                      DAYS_PER_YEAR, ic_path)
 from .discovery import rollout
 
@@ -55,7 +55,7 @@ def get_attractor_ic(tw, cfg, verbose=True):
     x0 = jnp.asarray(rng.standard_normal(tw.ndim) * IC_SCALE)
     t = time.time()
     xa = np.asarray(jm.integrate_final(tw.T_base, x0, cfg.dt, cfg.spinup_steps))
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(IC_DIR, exist_ok=True)
     np.savez(IC_CACHE, x=xa, ndim=tw.ndim, spinup_steps=cfg.spinup_steps,
              ic_seed=IC_SEED, dt=cfg.dt)
     if verbose:
@@ -121,7 +121,7 @@ def _mismatched(d, recipe):
 
 
 def spin_up(config="default", n_steps=1_000_000_000, trail_every=1_000_000,
-            checkpoint_every=10_000_000, directory=RESULTS_DIR, verbose=True):
+            checkpoint_every=10_000_000, directory=IC_DIR, verbose=True):
     """Spin a named parameter set's base model up from the ``IC_SEED`` x ``IC_SCALE`` recipe.
 
     Writes ``ic_path(config, n_steps, directory)`` holding the final state ``x``, the
@@ -195,7 +195,7 @@ def spin_up(config="default", n_steps=1_000_000_000, trail_every=1_000_000,
     return x
 
 
-def load_spun_up_ic(config, n_steps, directory=RESULTS_DIR):
+def load_spun_up_ic(config, n_steps, directory=IC_DIR):
     """The state ``spin_up`` wrote, after checking its recipe. Never builds one.
 
     Raises ``FileNotFoundError`` if it has not been built, and ``ValueError`` if it was built

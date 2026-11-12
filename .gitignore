@@ -17,5 +17,10 @@ __pycache__/
 error_discovery/results/*.npz
 error_discovery/results/*.log
 error_discovery/results/*jobid.txt
+error_discovery/results/*.status
 scratch/*.npz
 scratch/*.log
+
+# Spun-up states are tracked; spin_up's in-progress checkpoints are not.
+error_discovery/initial_conditions/*.partial.npz
+error_discovery/initial_conditions/*.tmp.npz
