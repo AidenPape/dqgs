@@ -120,6 +120,34 @@ def test_residual_jacobian_matches_jacfwd_at_c_true(tw, attractor):
     assert float(np.max(np.abs(np.asarray(resid(tw.c_true))))) == 0.0
 
 
+# ---- 4b. sectioned residual (plans/sectioned-loss.md) --------------------- #
+def _sectioned_case(tw, attractor):
+    """120 true steps, all 36 observed, positive weights, c away from c_true (non-zero residual)."""
+    Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 120))
+    oidx = D.obs_indices(obs_mask(tw.ndim, tw.spec.variables_range, "full"))
+    return Y, oidx, 1.0 / Y.std(axis=0), jnp.asarray([0.02, -0.05, 0.03, 0.01])
+
+
+def test_sectioned_residual_is_per_section_residual(tw, attractor):
+    """Three sections of 40 steps = make_residual on each section from its own start, joined
+    in order."""
+    Y, oidx, w, c = _sectioned_case(tw, attractor)
+    starts = np.vstack([np.asarray(attractor)[None], Y[39:-1:40]])
+    r = np.asarray(D.make_sectioned_residual(tw, starts, Y, 0.1, oidx, wchan=w)(c))
+    ref = np.concatenate([np.asarray(D.make_residual(tw, starts[k], Y[40 * k:40 * (k + 1)], 0.1,
+                                                     oidx, wchan=w)(c)) for k in range(3)])
+    assert r.shape == ref.shape == (120 * tw.ndim,)
+    assert np.max(np.abs(r - ref)) <= 1e-12 * np.max(np.abs(ref))
+
+
+def test_one_section_is_make_residual(tw, attractor):
+    Y, oidx, w, c = _sectioned_case(tw, attractor)
+    r = np.asarray(D.make_sectioned_residual(tw, np.asarray(attractor)[None], Y, 0.1, oidx,
+                                             wchan=w)(c))
+    ref = np.asarray(D.make_residual(tw, attractor, Y, 0.1, oidx, wchan=w)(c))
+    assert np.max(np.abs(r - ref)) <= 1e-12 * np.max(np.abs(ref))
+
+
 # ---- 5. LM does not increase the cost ------------------------------------- #
 def test_lm_monotone(tw, attractor):
     Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 1280))

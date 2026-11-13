@@ -77,6 +77,32 @@ def make_residual(tw, x0, Y_obs, dt, oidx, wchan=None):
     return resid
 
 
+def make_sectioned_residual(tw, starts, Y_obs, dt, oidx, wchan=None):
+    """``make_residual`` with the model restarted at the start of every section.
+
+    ``starts`` is (K, ndim), the state each of K sections begins from; ``Y_obs`` has K * tau
+    rows, and section k is scored on rows ``k*tau`` to ``(k+1)*tau - 1`` after a tau-step
+    rollout from ``starts[k]``. The K rollouts run side by side (``jax.vmap``) and the residual
+    is flattened section, step, variable: the same length and row order as ``make_residual``,
+    so the cost is the sum of the sections' costs. With K = 1 it is ``make_residual``.
+    ``plans/sectioned-loss.md``."""
+    starts = jnp.asarray(starts)
+    n_sec = starts.shape[0]
+    tau = Y_obs.shape[0] // n_sec
+    oidx = jnp.asarray(oidx)
+    Yo = jnp.asarray(Y_obs)[:, oidx].reshape(n_sec, tau, len(oidx))
+    wv = None if wchan is None else jnp.asarray(wchan)
+
+    def resid(c):
+        trajs = jax.vmap(lambda x0: rollout(lambda x: tw.f_model(x, c), x0, dt, tau))(starts)
+        diff = trajs[:, :, oidx] - Yo
+        if wv is not None:
+            diff = diff * wv                      # per-channel whitening (broadcast)
+        return diff.ravel()
+
+    return resid
+
+
 def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5, solver="normal"):
     """Levenberg--Marquardt least squares; returns (c_hat, J_final, cost_hist).
     ``J_final`` is the residual Jacobian evaluated at the converged coefficients, so
@@ -234,7 +260,7 @@ def add_obs_noise(Y, oidx, eta, rng):
 
 
 def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=False,
-            scale=None, noise=None, solver="normal"):
+            scale=None, noise=None, solver="normal", tau=None):
     """Run one discovery (optionally with observation noise). Returns a dict. With
     ``whiten=True`` each observed channel's residual is divided by that channel's
     climatological standard deviation, the assumed per-channel observation-error scale
@@ -246,7 +272,12 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
     std per state variable (the high-frequency climatological std), and ``noise``, a standard
     normal array of at least ``len(Y_true)`` rows and one column per state variable, shared
     across windows, noise levels and drivers (common random numbers). ``solver`` is
-    ``lm_fit``'s."""
+    ``lm_fit``'s.
+
+    ``tau`` restarts the model every ``tau`` steps (``make_sectioned_residual``,
+    ``plans/sectioned-loss.md``): section 0 from ``x0``, section k from the true state
+    ``Y_true[k*tau - 1]``, which stays the clean truth when noise is added. ``tau`` must divide
+    ``len(Y_true)``. ``None`` is one rollout over the whole window."""
     oidx = obs_indices(mask)
     if scale is None:
         rng = np.random.default_rng(noise_seed)
@@ -258,7 +289,13 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
         if eta > 0:
             Y[:, oidx] += eta * np.asarray(noise)[:len(Y)][:, oidx] * scale[oidx]
         wchan = 1.0 / scale[oidx] if whiten else None
-    resid = make_residual(tw, x0, Y, dt, oidx, wchan=wchan)
+    if tau is None:
+        resid = make_residual(tw, x0, Y, dt, oidx, wchan=wchan)
+    else:
+        if len(Y_true) % tau:
+            raise ValueError(f"tau = {tau} does not divide the {len(Y_true)}-step window")
+        starts = np.vstack([np.asarray(x0)[None], np.asarray(Y_true)[tau - 1:-1:tau]])
+        resid = make_sectioned_residual(tw, starts, Y, dt, oidx, wchan=wchan)
     c_hat, J_final, hist = lm_fit(resid, jnp.zeros(4), n_iters=n_iters, solver=solver)
     c_hat = np.asarray(c_hat)
     c_true = np.asarray(tw.c_true)
