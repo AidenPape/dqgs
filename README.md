@@ -51,7 +51,7 @@ below are the laptop env's versions as of 2026-11-12. conda-forge supplies every
 and qgs, which come from PyPI.
 
 ```bash
-conda create -n dqgs -c conda-forge --override-channels \
+conda create -y -n dqgs -c conda-forge --override-channels \
     python=3.11.15 numpy=2.4.6 scipy=1.17.1 matplotlib=3.10.9 scikit-learn=1.9.1 \
     numba=0.65.1 sympy=1.14.0 sparse=0.18.0 pebble=5.2.0 pytest=9.0.3 pip \
     "libblas=*=*openblas" "libopenblas=0.3.33=openmp*"

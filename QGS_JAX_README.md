@@ -27,7 +27,7 @@ trajectory loss back to parameters like `kd`, `sig0`, `Lpa`, `G`, ….
 | `qgs_jax/spec.py`     | Build a reference `QgParams`, run original `qgs`, extract the dense tensor + inner-product geometry + scalar parameters into a portable `ModelSpec`. |
 | `qgs_jax/model.py`    | JAX tendencies `f(x)`, analytic + autodiff Jacobian, RK2/RK4 integrators (`jax.lax.scan`, jit-able, differentiable). |
 | `qgs_jax/assemble.py` | Pure-JAX, parameter-differentiable re-assembly of the tendency tensor (bit-exact with `qgs`). |
-| `test_qgs_jax.py`     | pytest suite verifying 1:1 agreement and gradient correctness. |
+| `tests/test_qgs_jax.py` | pytest suite verifying 1:1 agreement and gradient correctness. |
 | `tune_demo.py`        | End-to-end automatic parameter tuning demo (recovers corrupted parameters by gradient descent). |
 
 ## Parameter sets
@@ -94,7 +94,7 @@ Each is documented in full in the comment above it in `qgs_jax/spec.py`.
 
 ## Verification status
 
-`pytest test_qgs_jax.py` — **15/15 pass**. It checks, to ~1e-12:
+`pytest tests/test_qgs_jax.py` — **15/15 pass**. It checks, to ~1e-12:
 
 1. Tendencies `f(x)`: JAX vs original qgs.
 2. Jacobian `Df(x)`: JAX-analytic vs JAX-autodiff vs original qgs.
@@ -129,8 +129,7 @@ grad = jax.grad(trajectory_loss)(theta0)                # dL/dθ for every param
 
 ## Environment
 
-Dependencies are declared in `pyproject.toml`; `pip install -e .` from the repo root
-provides them, including the pinned `qgs==1.0.0`. `numpy` x64 is used throughout
+Install: see [`README.md`](README.md), "Install". `numpy` x64 is used throughout
 (`jax_enable_x64`).
 
 ## Notes / scope
