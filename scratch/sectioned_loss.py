@@ -11,7 +11,9 @@ Writes ``results/data/sectioned_loss_both_<driver>.npz``, one per driver.
 
 ``figure`` reads those with ``driver_window_stage0b_both.npz`` for the two baselines: the
 unsectioned 8000-step fit, and at tau = 40 / 80 / 160 / 320 the single window of length tau from
-the same state. Reached = rel_err < 1e-3. It draws (a), states reached of 16 against tau, and
+the same state. Reached = rel_err < 1e-3. It draws (a), states reached of 16 against tau:
+sectioned solid, extended to 89.7 d with the unsectioned fit (one section); 0b's single window
+dashed, at all 13 of its window lengths (0.45 to 89.7 d), not only the four above. It
 prints and logs (b), per-state changes against each baseline, and (c), failed fits by kind:
 cost_final / cost0 (cost left when LM stops over cost at c = 0) below 1e-10 "fell to ~0", above
 0.5 "barely moved", else "partial".
@@ -190,26 +192,24 @@ def figure(tag=MODE):
     for ax, (n, d) in zip(axes[0], runs.items()):
         i, col = list(b["drivers"]).index(n), colors[list(DRIVERS).index(n)]
         k = d["rel_err"].shape[1]
-        ax.plot(d["tau_days"], (d["rel_err"] < REACHED).sum(axis=1), "o-", ms=4, color=col,
-                label="sectioned")
-        ax.axhline((b["rel_err"][i, -1, :k] < REACHED).sum(), ls="--", color=col, lw=1,
-                   label="unsectioned 89.7 d (0b)")
-        single = [(t, (b["rel_err"][i, wins.index(t), :k] < REACHED).sum())
-                  for t in d["tau_steps"] if t in wins]
-        ax.plot([steps_to_days(t) for t, _ in single], [c for _, c in single], "o", ms=6,
-                mfc="none", color=col, label="single window of length tau (0b)")
+        reached = b["rel_err"][i, :, :k] < REACHED                      # 0b, every window
+        ax.plot(list(d["tau_days"]) + [steps_to_days(wins[-1])],
+                list((d["rel_err"] < REACHED).sum(axis=1)) + [reached[-1].sum()], "o-", ms=4,
+                color=col, label="sectioned")
+        ax.plot([steps_to_days(t) for t in wins], reached.sum(axis=1), "o--", ms=4, lw=1,
+                color=col, label="single window of length tau")
         ax.set_xscale("log")
         ax.set_ylim(-0.5, k + 0.5)
         ax.yaxis.get_major_locator().set_params(integer=True)
-        ax.set_xlabel("section length tau  [days]")
+        ax.set_xlabel("section length tau / single-window length  [days]", fontsize=9)
         ax.set_title(n, fontsize=10)
     axes[0, 0].set_ylabel(f"states reached (rel_err < {REACHED:g}) of {k}")
-    figstyle.finish(fig, f"States reached of {k}, '{MODE}' mode, noiseless: fit with the 89.7-d "
-                         "window restarted every tau, unsectioned fit, single window of length tau")
+    figstyle.finish(fig, f"States reached of {k}, '{MODE}' mode, noiseless: 89.7-d window "
+                         "restarted every tau (solid), single window of length tau (dashed)")
     fig.subplots_adjust(bottom=0.27)
-    fig.legend(*axes[0, 0].get_legend_handles_labels(), loc="lower center", ncol=3, fontsize=8,
+    fig.legend(*axes[0, 0].get_legend_handles_labels(), loc="lower center", ncol=2, fontsize=8,
                frameon=False)
-    path = os.path.join(FIGURES_DIR, f"sectioned_loss_{tag}_reached.png")
+    path = os.path.join(FIGURES_DIR, f"noiseless_sectioned_loss_{tag}_reached.png")
     fig.savefig(path, dpi=figstyle.DPI)
     plt.close(fig)
 
