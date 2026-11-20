@@ -21,6 +21,7 @@ Run:  pytest test_error_discovery.py -v
 import sys
 
 import numpy as np
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -168,6 +169,38 @@ def test_lm_qr_matches_normal_equations():
             for s in ("normal", "qr")]
     assert np.max(np.abs(fits[0] - fits[1])) < 1e-10
     assert np.max(np.abs(fits[1] - np.asarray(c_star))) < 1e-8
+
+
+def test_lm_c_hist(tw, attractor):
+    """``return_c_hist`` records the path without changing the fit: same ``c_hat`` and
+    ``cost_hist`` as without it, the path runs from ``c0`` to ``c_hat``, and the cost at each
+    recorded ``c`` is the matching ``cost_hist`` entry."""
+    Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 320))
+    mask = obs_mask(tw.ndim, tw.spec.variables_range, "full")
+    resid = D.make_residual(tw, attractor, Y, 0.1, D.obs_indices(mask))
+    c0 = jnp.asarray([0.05, -0.1, 0.15, 0.02])
+    c_off, _, hist_off = D.lm_fit(resid, c0, n_iters=8)
+    c_on, _, hist_on, c_hist = D.lm_fit(resid, c0, n_iters=8, return_c_hist=True)
+    assert np.array_equal(np.asarray(c_on), np.asarray(c_off))
+    assert np.array_equal(hist_on, hist_off)
+    assert c_hist.shape == (len(hist_on), 4)
+    assert np.array_equal(c_hist[0], np.asarray(c0))
+    assert np.array_equal(c_hist[-1], np.asarray(c_on))
+    resid_j = jax.jit(resid)
+    costs = [float(0.5 * resid_j(jnp.asarray(c)) @ resid_j(jnp.asarray(c))) for c in c_hist]
+    np.testing.assert_allclose(costs, hist_on, rtol=1e-12, atol=0)
+
+
+def test_recover_default_start_is_zero(tw, attractor):
+    """``recover(c0=None)`` is the fit LM makes from ``c = 0`` without the path recorded."""
+    Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 320))
+    mask = obs_mask(tw.ndim, tw.spec.variables_range, "full")
+    r = D.recover(tw, attractor, Y, 0.1, mask, eta=0.0, n_iters=8)
+    resid = D.make_residual(tw, attractor, Y, 0.1, D.obs_indices(mask))
+    c_ref, _, hist_ref = D.lm_fit(resid, jnp.zeros(4), n_iters=8)
+    assert np.array_equal(r["c_hat"], np.asarray(c_ref))
+    assert np.array_equal(r["cost_hist"], hist_ref)
+    assert np.array_equal(r["c_hist"][0], np.zeros(4))
 
 
 # ---- 6. end-to-end noiseless recovery at an intermediate window ----------- #

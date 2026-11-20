@@ -103,7 +103,8 @@ def make_sectioned_residual(tw, starts, Y_obs, dt, oidx, wchan=None):
     return resid
 
 
-def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5, solver="normal"):
+def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5, solver="normal",
+           return_c_hist=False):
     """Levenberg--Marquardt least squares; returns (c_hat, J_final, cost_hist).
     ``J_final`` is the residual Jacobian evaluated at the converged coefficients, so
     its SVD gives the local conditioning of the parameter -> observation map at the
@@ -113,7 +114,10 @@ def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5, solver="nor
     J), is solved. ``"normal"`` forms J^T J + lam D, which squares cond(J). ``"qr"`` factors
     J = Q R once per iteration and solves each try as least squares on R stacked over
     sqrt(lam) diag(d), so cond(J) is not squared (More 1978; Nocedal & Wright 2006 ch. 10).
-    Same step mathematically; ``plans/fitting-experiments.md`` decision 4c."""
+    Same step mathematically; ``plans/fitting-experiments.md`` decision 4c.
+
+    ``return_c_hist`` adds a fourth return, the coefficients after each iteration, one row per
+    ``cost_hist`` entry (row 0 is ``c0``; a rejected step repeats the row before)."""
     resid_j = jax.jit(resid)
     jac_j = jax.jit(jax.jacfwd(resid))
 
@@ -122,6 +126,7 @@ def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5, solver="nor
     cost = float(0.5 * rc @ rc)
     lam = lam0
     hist = [cost]
+    c_hist = [np.asarray(c)]
     for _ in range(n_iters):
         J = np.asarray(jac_j(c))
         rcn = np.asarray(rc)
@@ -156,9 +161,12 @@ def lm_fit(resid, c0, n_iters=15, lam0=1e-2, lam_up=3.0, lam_dn=0.5, solver="nor
                 break
             lam *= lam_up
         hist.append(cost)
+        c_hist.append(np.asarray(c))
         if not accepted:
             break
     J_final = np.asarray(jac_j(c))             # Jacobian at the converged coefficients
+    if return_c_hist:
+        return c, J_final, np.asarray(hist), np.asarray(c_hist)
     return c, J_final, np.asarray(hist)
 
 
@@ -260,7 +268,7 @@ def add_obs_noise(Y, oidx, eta, rng):
 
 
 def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=False,
-            scale=None, noise=None, solver="normal", tau=None):
+            scale=None, noise=None, solver="normal", tau=None, c0=None):
     """Run one discovery (optionally with observation noise). Returns a dict. With
     ``whiten=True`` each observed channel's residual is divided by that channel's
     climatological standard deviation, the assumed per-channel observation-error scale
@@ -277,7 +285,11 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
     ``tau`` restarts the model every ``tau`` steps (``make_sectioned_residual``,
     ``plans/sectioned-loss.md``): section 0 from ``x0``, section k from the true state
     ``Y_true[k*tau - 1]``, which stays the clean truth when noise is added. ``tau`` must divide
-    ``len(Y_true)``. ``None`` is one rollout over the whole window."""
+    ``len(Y_true)``. ``None`` is one rollout over the whole window.
+
+    ``c0`` is where LM starts; ``None`` is ``c = 0``. The returned ``c_hist`` holds the
+    coefficients after each LM iteration, aligned with ``cost_hist``
+    (``plans/short-window-failures.md``)."""
     oidx = obs_indices(mask)
     if scale is None:
         rng = np.random.default_rng(noise_seed)
@@ -296,7 +308,9 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
             raise ValueError(f"tau = {tau} does not divide the {len(Y_true)}-step window")
         starts = np.vstack([np.asarray(x0)[None], np.asarray(Y_true)[tau - 1:-1:tau]])
         resid = make_sectioned_residual(tw, starts, Y, dt, oidx, wchan=wchan)
-    c_hat, J_final, hist = lm_fit(resid, jnp.zeros(4), n_iters=n_iters, solver=solver)
+    c0 = jnp.zeros(4) if c0 is None else jnp.asarray(c0)
+    c_hat, J_final, hist, c_hist = lm_fit(resid, c0, n_iters=n_iters, solver=solver,
+                                          return_c_hist=True)
     c_hat = np.asarray(c_hat)
     c_true = np.asarray(tw.c_true)
     rel_err = float(np.linalg.norm(c_hat - c_true) / (np.linalg.norm(c_true) + 1e-300))
@@ -312,7 +326,7 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
                 col_norm=unc["col_norm"], se_unit=unc["se_unit"],
                 vif=unc["vif"], align=unc["align"],
                 cost0=float(hist[0]), cost_final=float(hist[-1]), cost_hist=hist,
-                eta=float(eta))
+                c_hist=c_hist, eta=float(eta))
 
 
 # --------------------------------------------------------------------------- #
