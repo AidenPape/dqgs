@@ -381,11 +381,32 @@ def noise_scale(n_years=BASE_RUN_YEARS, directory=DATA_DIR):
     return np.asarray(load_regimes(n_years, directory)["hf_std"])
 
 
-def shared_noise(snapshot_index, seed_index, n_steps, ndim, seed=21217):
+def shared_noise(snapshot_index, seed_index, n_steps, ndim, seed=21217, eta=None):
     """Standard-normal noise for one starting state and seed index: common random numbers,
-    reused for every window (as a prefix), noise level and driver on that state."""
-    return np.random.default_rng([seed, int(snapshot_index), int(seed_index)]).standard_normal(
-        (n_steps, ndim))
+    reused for every window (as a prefix) and driver on that state. ``eta=None`` reuses it for
+    every noise level too; given ``eta``, the key gains ``eta_key(eta)`` and each level gets its
+    own draw (``notes/TODO.md`` item 14, ``plans/sectioned-loss-noisy.md`` decision 2)."""
+    key = [seed, int(snapshot_index), int(seed_index)]
+    if eta is not None:
+        key.append(eta_key(eta))
+    return np.random.default_rng(key).standard_normal((n_steps, ndim))
+
+
+def start_noise(snapshot_index, seed_index, ndim, eta, seed=21217):
+    """Standard-normal draw for the error in a fit's starting state, one per state, seed index
+    and noise level; independent of ``shared_noise``'s draw (``plans/sectioned-loss-noisy.md``
+    decision 3)."""
+    key = [seed, int(snapshot_index), int(seed_index), eta_key(eta), 1]
+    return np.random.default_rng(key).standard_normal(ndim)
+
+
+def eta_key(eta):
+    """The noise level's term in a draw's key, ``round(-1000 log10 eta)``. Never 0: numpy pads a
+    key with zeros, so a trailing 0 would give back the ``eta=None`` draw."""
+    k = int(round(-1000 * np.log10(eta)))
+    if k <= 0:
+        raise ValueError(f"eta = {eta} gives key term {k}; must be positive (eta < 1)")
+    return k
 
 
 # --------------------------------------------------------------------------- #

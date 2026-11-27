@@ -202,3 +202,18 @@ def test_shared_noise_is_common_across_lengths():
     b = sm.shared_noise(123, 1, 40, 36)
     assert np.array_equal(a[:40], b)
     assert not np.array_equal(a, sm.shared_noise(123, 2, 100, 36))
+
+
+def test_noise_keyed_on_eta():
+    """``eta=None`` is the draw every caller made before the key gained eta; each eta gets a
+    draw of its own, still common across lengths; the starting-state draw is a third one."""
+    old = np.random.default_rng([21217, 123, 1]).standard_normal((100, 36))
+    assert np.array_equal(sm.shared_noise(123, 1, 100, 36), old)
+    a, b = (sm.shared_noise(123, 1, 100, 36, eta=e) for e in (1e-4, 1e-3))
+    assert not np.array_equal(a, old) and not np.array_equal(a, b)
+    assert np.array_equal(sm.shared_noise(123, 1, 40, 36, eta=1e-4), a[:40])
+    assert (sm.eta_key(1e-4), sm.eta_key(1e-3)) == (4000, 3000)
+    w = sm.start_noise(123, 1, 36, 1e-4)
+    assert not any(np.array_equal(w, x[0]) for x in (old, a, b))
+    with pytest.raises(ValueError):
+        sm.eta_key(1.0)

@@ -149,6 +149,29 @@ def test_one_section_is_make_residual(tw, attractor):
     assert np.max(np.abs(r - ref)) <= 1e-12 * np.max(np.abs(ref))
 
 
+def test_noisy_starts(tw, attractor):
+    """``recover(noisy_starts=True)``: noiseless it is the true-start fit; with noise each
+    section starts from the noisy observation one step before it, and ``cost_true`` is the
+    compiled cost at c_true (plans/sectioned-loss-noisy.md decision 3)."""
+    Y, oidx, w, _ = _sectioned_case(tw, attractor)
+    mask = obs_mask(tw.ndim, tw.spec.variables_range, "full")
+    scale = 1.0 / w
+    noise = np.random.default_rng(0).standard_normal(Y.shape)
+    kw = dict(n_iters=2, whiten=True, scale=scale, noise=noise, tau=40, cost_at_true=True)
+    clean = [D.recover(tw, attractor, Y, 0.1, mask, eta=0.0, noisy_starts=s, **kw)
+             for s in (False, True)]
+    assert np.array_equal(clean[0]["cost_hist"], clean[1]["cost_hist"])
+    assert clean[1]["cost_true"] < 1e-20
+
+    r = D.recover(tw, attractor, Y, 0.1, mask, eta=1e-3, noisy_starts=True, **kw)
+    Y_obs = Y + 1e-3 * noise * scale
+    starts = np.vstack([np.asarray(attractor)[None], Y_obs[39:-1:40]])
+    resid = jax.jit(D.make_sectioned_residual(tw, starts, Y_obs, 0.1, oidx, wchan=w))
+    for c, cost in ((jnp.zeros(4), r["cost0"]), (jnp.asarray(tw.c_true), r["cost_true"])):
+        rc = resid(c)
+        np.testing.assert_allclose(cost, float(0.5 * rc @ rc), rtol=1e-12, atol=0)
+
+
 # ---- 5. LM does not increase the cost ------------------------------------- #
 def test_lm_monotone(tw, attractor):
     Y = np.asarray(D.rollout(lambda x: tw.f_true(x), attractor, 0.1, 1280))

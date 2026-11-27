@@ -268,7 +268,8 @@ def add_obs_noise(Y, oidx, eta, rng):
 
 
 def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=False,
-            scale=None, noise=None, solver="normal", tau=None, c0=None):
+            scale=None, noise=None, solver="normal", tau=None, c0=None, noisy_starts=False,
+            cost_at_true=False):
     """Run one discovery (optionally with observation noise). Returns a dict. With
     ``whiten=True`` each observed channel's residual is divided by that channel's
     climatological standard deviation, the assumed per-channel observation-error scale
@@ -285,7 +286,12 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
     ``tau`` restarts the model every ``tau`` steps (``make_sectioned_residual``,
     ``plans/sectioned-loss.md``): section 0 from ``x0``, section k from the true state
     ``Y_true[k*tau - 1]``, which stays the clean truth when noise is added. ``tau`` must divide
-    ``len(Y_true)``. ``None`` is one rollout over the whole window.
+    ``len(Y_true)``. ``None`` is one rollout over the whole window. ``noisy_starts=True``
+    starts section k from the noisy observation ``Y[k*tau - 1]`` instead
+    (``plans/sectioned-loss-noisy.md`` decision 3); an error in ``x0`` is the caller's.
+
+    ``cost_at_true=True`` adds ``cost_true``, the cost at ``c_true``, evaluated compiled as
+    ``lm_fit`` evaluates cost.
 
     ``c0`` is where LM starts; ``None`` is ``c = 0``. The returned ``c_hist`` holds the
     coefficients after each LM iteration, aligned with ``cost_hist``
@@ -306,7 +312,8 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
     else:
         if len(Y_true) % tau:
             raise ValueError(f"tau = {tau} does not divide the {len(Y_true)}-step window")
-        starts = np.vstack([np.asarray(x0)[None], np.asarray(Y_true)[tau - 1:-1:tau]])
+        restart_rows = Y if noisy_starts else Y_true
+        starts = np.vstack([np.asarray(x0)[None], np.asarray(restart_rows)[tau - 1:-1:tau]])
         resid = make_sectioned_residual(tw, starts, Y, dt, oidx, wchan=wchan)
     c0 = jnp.zeros(4) if c0 is None else jnp.asarray(c0)
     c_hat, J_final, hist, c_hist = lm_fit(resid, c0, n_iters=n_iters, solver=solver,
@@ -316,17 +323,21 @@ def recover(tw, x0, Y_true, dt, mask, eta=0.0, n_iters=15, noise_seed=0, whiten=
     rel_err = float(np.linalg.norm(c_hat - c_true) / (np.linalg.norm(c_true) + 1e-300))
     spec = jacobian_spectrum(J_final)
     unc = coefficient_uncertainty(J_final)
-    return dict(c_hat=c_hat, c_true=c_true, rel_err=rel_err,
-                cond=spec["cond_JtJ"],          # back-compat: cond(J^T J) = cond(J)^2
-                cond_J=spec["cond_J"], smin=spec["smin"], smax=spec["smax"],
-                rank=spec["rank"],
-                # per-coefficient, where cond() is a single number for the whole fit:
-                # se_unit * sigma_obs is coefficient i's standard error (sigma_obs = eta
-                # when whitened), and vif is what fitting the other three costs it.
-                col_norm=unc["col_norm"], se_unit=unc["se_unit"],
-                vif=unc["vif"], align=unc["align"],
-                cost0=float(hist[0]), cost_final=float(hist[-1]), cost_hist=hist,
-                c_hist=c_hist, eta=float(eta))
+    out = dict(c_hat=c_hat, c_true=c_true, rel_err=rel_err,
+               cond=spec["cond_JtJ"],          # back-compat: cond(J^T J) = cond(J)^2
+               cond_J=spec["cond_J"], smin=spec["smin"], smax=spec["smax"],
+               rank=spec["rank"],
+               # per-coefficient, where cond() is a single number for the whole fit:
+               # se_unit * sigma_obs is coefficient i's standard error (sigma_obs = eta
+               # when whitened), and vif is what fitting the other three costs it.
+               col_norm=unc["col_norm"], se_unit=unc["se_unit"],
+               vif=unc["vif"], align=unc["align"],
+               cost0=float(hist[0]), cost_final=float(hist[-1]), cost_hist=hist,
+               c_hist=c_hist, eta=float(eta))
+    if cost_at_true:
+        r_true = jax.jit(resid)(jnp.asarray(c_true))
+        out["cost_true"] = float(0.5 * r_true @ r_true)
+    return out
 
 
 # --------------------------------------------------------------------------- #
