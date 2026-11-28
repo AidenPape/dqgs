@@ -1,0 +1,45 @@
+#!/bin/bash -l
+# The 32000-step (358.9 d) sectioned-loss run (plans/sectioned-loss-32000-step-window.md,
+# decisions 6.1-6.2): a 10-subjob array, one subjob per output file, 208 fits each, one core.
+# Memory M and wall time W come from sectioned_loss_32000_step_window_smoke.pbs: M = 2 x its peak
+# RSS at 32000 steps, W = 2 x its time per fit x 208, at most 24 h. Submit from dqgs/:
+#   qsub -A <project> -l select=1:ncpus=1:mem=<M> -l walltime=<W> scratch/sectioned_loss_32000_step_window.pbs
+# Output: results/data/<stem>_window_32000_steps.npz, log results/logs/<stem>_window_32000_steps.log.
+#PBS -N sectioned_loss_32000
+#PBS -q casper
+#PBS -J 0-9
+#PBS -j oe
+
+module load conda
+conda activate dqgs
+export OMP_NUM_THREADS=1
+export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false"
+cd "$PBS_O_WORKDIR"
+
+ARGS=(
+    "sectioned_loss.py long 32000 theta_a1"
+    "sectioned_loss.py long 32000 T_o1"
+    "noisy_sectioned_loss.py long 1e-4 true_state 32000 theta_a1"
+    "noisy_sectioned_loss.py long 1e-4 true_state 32000 T_o1"
+    "noisy_sectioned_loss.py long 1e-4 noisy_obs 32000 theta_a1"
+    "noisy_sectioned_loss.py long 1e-4 noisy_obs 32000 T_o1"
+    "noisy_sectioned_loss.py long 1e-3 true_state 32000 theta_a1"
+    "noisy_sectioned_loss.py long 1e-3 true_state 32000 T_o1"
+    "noisy_sectioned_loss.py long 1e-3 noisy_obs 32000 theta_a1"
+    "noisy_sectioned_loss.py long 1e-3 noisy_obs 32000 T_o1"
+)
+STEMS=(
+    sectioned_loss_both_theta_a1
+    sectioned_loss_both_T_o1
+    noisy_sectioned_loss_both_theta_a1_eta1e-4_section_starts_true_state
+    noisy_sectioned_loss_both_T_o1_eta1e-4_section_starts_true_state
+    noisy_sectioned_loss_both_theta_a1_eta1e-4_section_starts_noisy_obs
+    noisy_sectioned_loss_both_T_o1_eta1e-4_section_starts_noisy_obs
+    noisy_sectioned_loss_both_theta_a1_eta1e-3_section_starts_true_state
+    noisy_sectioned_loss_both_T_o1_eta1e-3_section_starts_true_state
+    noisy_sectioned_loss_both_theta_a1_eta1e-3_section_starts_noisy_obs
+    noisy_sectioned_loss_both_T_o1_eta1e-3_section_starts_noisy_obs
+)
+i=$PBS_ARRAY_INDEX
+python -u scratch/${ARGS[$i]} \
+    > error_discovery/results/logs/${STEMS[$i]}_window_32000_steps.log 2>&1

@@ -21,13 +21,23 @@ a 16000-step (179.4 d) window, theta_a1 and T_o1 only: every tau in ``TAUS``, ta
 over the first 8000 rows are the 8000-step run's (``check_prefix``); no single windows, which
 would repeat that run's. File names gain ``_window_16000_steps``.
 
+32000-step window (``plans/sectioned-loss-32000-step-window.md``, run on Casper): ``long ... 32000``
+adds tau = 16000 (two 179-d sections) before the unsectioned 32000-step fit (``LONG_TAUS``), and
+takes an optional driver, so each output file can be one process. ``check_smoke_vs_full``
+compares ``smoke_long``'s fits, run on another machine, with the same fits in the full ``long``
+run's files (its decision 6.4).
+
     python scratch/noisy_sectioned_loss.py 1e-3 noisy_obs     # one (eta, condition), 5 drivers
     python scratch/noisy_sectioned_loss.py smoke 1e-3 noisy_obs   # both #0, #1, T_o1
     python scratch/noisy_sectioned_loss.py check_stage1        # old key vs Stage 1's 8000 fit
     python scratch/noisy_sectioned_loss.py figure              # figure A per start condition
     python scratch/noisy_sectioned_loss.py long 1e-3 noisy_obs        # 16000 steps, 2 drivers
+    python scratch/noisy_sectioned_loss.py long 1e-3 noisy_obs 32000 T_o1   # 32000, one driver
     python scratch/noisy_sectioned_loss.py smoke_long 1e-3 noisy_obs  # both #0, #1, T_o1
+    python scratch/noisy_sectioned_loss.py smoke_long 1e-3 noisy_obs 32000  # the same at 32000
     python scratch/noisy_sectioned_loss.py check_prefix        # 16000-step truth, noise prefix
+    python scratch/noisy_sectioned_loss.py check_prefix 32000  # 32000 vs 8000 and 16000
+    python scratch/noisy_sectioned_loss.py check_smoke_vs_full # 16000 smoke vs full-run files
     python scratch/noisy_sectioned_loss.py figure_long         # 89.7 d vs 179 d figures, table
 
 ``figure`` (figures decisions 1-4, ``plans/sectioned-loss-noisy.md``): one figure per start
@@ -39,6 +49,7 @@ table keeps its median. The values go to ``results/logs/noisy_sectioned_loss_bot
 """
 
 import os
+import resource
 import sys
 import time
 
@@ -60,7 +71,9 @@ SINGLES = (40, 80, 160, 320)
 CONDITIONS = ("true_state", "noisy_obs")
 ETAS = (1e-4, 1e-3)                  # decision 2
 SEED_INDEX = 0                       # one noise draw per state (decision 4)
-LONG_STEPS = 16000                   # longer-window plan, decision 2 (179.4 d)
+LONG_STEPS = 16000                   # longer-window plan, decision 2 (179.4 d); the default window
+LONG_TAUS = {16000: TAUS + (8000, 16000),         # its decision 3; last = the unsectioned fit
+             32000: TAUS + (8000, 16000, 32000)}  # 32000-step plan, decision 2
 LONG_DRIVERS = ("theta_a1", "T_o1")  # its decision 4
 REACHED = 1e-3                       # rel_err below this = reached c_true (the noiseless criterion)
 FIELDS = ("rel_err", "cond_J", "smin", "smax", "rank", "cost0", "cost_final", "cost_true")
@@ -77,6 +90,13 @@ START_ERROR = {
 
 def _baseline():
     return np.load(os.path.join(DATA_DIR, f"driver_window_stage0b_{MODE}.npz"))
+
+
+def _peak_rss_gb():
+    """This process's peak resident memory in GB. ``ru_maxrss`` is bytes on macOS (measured
+    2026-11-27) and KB on Linux (getrusage(2), from memory)."""
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return rss * (1 if sys.platform == "darwin" else 1024) / 1e9
 
 
 def _eta_name(eta):
@@ -106,8 +126,9 @@ def run(eta, condition, drivers=tuple(DRIVERS), n_states=None, prefix="noisy_sec
         window=None):
     """Every tau, the unsectioned fit and the single windows, per state, for each driver.
 
-    ``window``: a window length in steps other than 0b's 8000. Adds tau = 8000, drops the single
-    windows, and the file name gains the window. ``None``: 0b's 8000 steps, as before.
+    ``window``: a window length in steps other than 0b's 8000, a key of ``LONG_TAUS``, which
+    gives its taus. Drops the single windows, and the file name gains the window. ``None``: 0b's
+    8000 steps, as before.
     """
     assert condition in CONDITIONS
     cfg = ExperimentConfig()
@@ -120,7 +141,7 @@ def run(eta, condition, drivers=tuple(DRIVERS), n_states=None, prefix="noisy_sec
     scale = noise_scale()
     states = load_snapshots(idx)
     noisy = condition == "noisy_obs"
-    taus = TAUS + ((base_steps,) if window else ()) + (n_steps,)
+    taus = LONG_TAUS[window] if window else TAUS + (n_steps,)
     singles = () if window else SINGLES
     paths = []
     for driver in drivers:
@@ -202,28 +223,56 @@ def check_stage1(eta=1e-3, driver="T_o1", n_states=2):
                   f"max |diff| {diff:.1e}", flush=True)
 
 
-def check_prefix(n_states=1):
-    """Longer-window plan, decision 6 check (1): rows 0-7999 of the 16000-step truth (per
-    driver) and noise draw (per eta) are bit-identical to the 8000-step ones, so the longer fits
-    see the 8000-step run's data plus 8000 rows more. ``x0``'s draw takes no length."""
+def check_prefix(n_states=1, window=LONG_STEPS):
+    """Longer-window plan, decision 6 check (1): the first rows of the ``window``-step truth (per
+    driver) and noise draw (per eta) are bit-identical to each shorter run's (8000 steps, and
+    16000 for a 32000-step window), so the longer fits see the shorter runs' data plus rows
+    more. ``x0``'s draw takes no length."""
     cfg = ExperimentConfig()
     b = _baseline()
     base_steps = int(b["windows"][-1])
+    shorter = [base_steps] + [w for w in LONG_TAUS if w < window]
     idx = b["sample_snapshot_index"][:n_states]
     states = load_snapshots(idx)
     for driver in LONG_DRIVERS:
         tw = TwinModels(cfg.eps, DRIVERS[driver])
-        _, short = segments_from_states(tw, states, base_steps, cfg.dt)
-        _, long = segments_from_states(tw, states, LONG_STEPS, cfg.dt)
-        for k in range(len(idx)):
-            print(f"[{driver}] state {k}: truth rows 0-{base_steps - 1} bit-identical "
-                  f"{np.array_equal(long[k][:base_steps], short[k])}", flush=True)
+        _, long = segments_from_states(tw, states, window, cfg.dt)
+        for n in shorter:
+            _, short = segments_from_states(tw, states, n, cfg.dt)
+            for k in range(len(idx)):
+                print(f"[{driver}] state {k}: truth rows 0-{n - 1} of {window} bit-identical "
+                      f"{np.array_equal(long[k][:n], short[k])}", flush=True)
     for k, snap in enumerate(idx):
         for eta in ETAS:
-            z_short = shared_noise(snap, SEED_INDEX, base_steps, tw.ndim, eta=eta)
-            z_long = shared_noise(snap, SEED_INDEX, LONG_STEPS, tw.ndim, eta=eta)
-            print(f"state {k} eta {eta:g}: noise rows 0-{base_steps - 1} bit-identical "
-                  f"{np.array_equal(z_long[:base_steps], z_short)}", flush=True)
+            z_long = shared_noise(snap, SEED_INDEX, window, tw.ndim, eta=eta)
+            for n in shorter:
+                z_short = shared_noise(snap, SEED_INDEX, n, tw.ndim, eta=eta)
+                print(f"state {k} eta {eta:g}: noise rows 0-{n - 1} of {window} bit-identical "
+                      f"{np.array_equal(z_long[:n], z_short)}", flush=True)
+
+
+def check_smoke_vs_full(window=LONG_STEPS, driver="T_o1", n_states=2):
+    """32000-step plan, decision 6.4: ``smoke_long``'s fits (noiseless, from
+    ``scratch/sectioned_loss.py``, and the 4 noisy) against the same fits in the full ``long``
+    run's files, when the smoke ran on another machine. Per file and field: fits bit-identical of
+    all (c_hats: all 4 coefficients equal), and the largest absolute difference."""
+    pairs = [("noiseless",                     # names as ``scratch/sectioned_loss.py``'s _path
+              os.path.join(DATA_DIR, f"sectioned_loss_smoke_{driver}_window_{window}_steps.npz"),
+              os.path.join(DATA_DIR, f"sectioned_loss_{MODE}_{driver}_window_{window}_steps.npz"))]
+    pairs += [(f"{_eta_name(eta)} {c}", _path(driver, eta, c, "smoke_noisy_sectioned_loss", window),
+               _path(driver, eta, c, window=window)) for eta in ETAS for c in CONDITIONS]
+    for label, smoke_path, full_path in pairs:
+        s, f = np.load(smoke_path), np.load(full_path)
+        assert np.array_equal(s["tau_steps"], f["tau_steps"]), label
+        assert np.array_equal(s["sample_snapshot_index"], f["sample_snapshot_index"][:n_states])
+        for key in ("c_hats", "rel_err", "cost0", "cost_final", "n_iters"):
+            new, old = s[key][:, :n_states], f[key][:, :n_states]
+            same = new == old
+            if same.ndim == 3:
+                same = same.all(axis=-1)
+            diff = np.max(np.abs(np.asarray(new, float) - old))
+            print(f"{label:26s} {key:10s} bit-identical {same.sum():2d} of {same.size}  "
+                  f"max |diff| {diff:.1e}", flush=True)
 
 
 def _median_band(x):
@@ -512,18 +561,22 @@ if __name__ == "__main__":
         n_fits = 2 * (len(TAUS) + 1 + len(SINGLES))
         print(f"wall time {time.time() - t0:.0f} s, {(time.time() - t0) / n_fits:.1f} s per fit "
               f"(setup included)", flush=True)
-    elif args[0] == "check_prefix":
-        check_prefix()
+    elif args[0] == "check_prefix":                 # check_prefix [window]
+        check_prefix(window=int(args[1]) if len(args) > 1 else LONG_STEPS)
+    elif args[0] == "check_smoke_vs_full":
+        check_smoke_vs_full()
     elif args[0] == "figure_long":
         print(figure_long())
-    elif args[0] == "long":
-        run(float(args[1]), args[2], drivers=LONG_DRIVERS, window=LONG_STEPS)
-    elif args[0] == "smoke_long":
+    elif args[0] == "long":                         # long <eta> <condition> [window] [driver]
+        window = int(args[3]) if len(args) > 3 else LONG_STEPS
+        run(float(args[1]), args[2], drivers=tuple(args[4:5]) or LONG_DRIVERS, window=window)
+    elif args[0] == "smoke_long":                   # smoke_long <eta> <condition> [window]
+        window = int(args[3]) if len(args) > 3 else LONG_STEPS
         t0 = time.time()
         run(float(args[1]), args[2], drivers=("T_o1",), n_states=2,
-            prefix="smoke_noisy_sectioned_loss", window=LONG_STEPS)
-        n_fits = 2 * (len(TAUS) + 2)
+            prefix="smoke_noisy_sectioned_loss", window=window)
+        n_fits = 2 * len(LONG_TAUS[window])
         print(f"wall time {time.time() - t0:.0f} s, {(time.time() - t0) / n_fits:.1f} s per fit "
-              f"(setup included)", flush=True)
+              f"(setup included), peak RSS {_peak_rss_gb():.2f} GB", flush=True)
     else:
         run(float(args[0]), args[1])

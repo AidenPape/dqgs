@@ -1,0 +1,37 @@
+#!/bin/bash -l
+# Casper smoke before the 32000-step sectioned-loss run (plans/sectioned-loss-32000-step-window.md,
+# decisions 6.4 and 7), 10 processes at once, one core each:
+#  - smoke_long at 16000 steps, noiseless + 4 noisy, then check_smoke_vs_full: the same 120 fits
+#    against the laptop's 179-d full-run files (cross-CPU check);
+#  - smoke_long at 32000 steps, noiseless + 4 noisy: time per fit and peak RSS, which set the
+#    memory and wall time of sectioned_loss_32000_step_window.pbs.
+# Memory: 5 x 1.1 GB measured at 16000 steps (laptop) + 5 x ~2.2 GB estimated at 32000, doubled.
+# Submit from dqgs/:
+#   qsub -A <project> scratch/sectioned_loss_32000_step_window_smoke.pbs
+# Output: error_discovery/results/logs/smoke_*.log and results/data/*smoke*.npz (untracked).
+#PBS -N sectioned_loss_smoke
+#PBS -q casper
+#PBS -l select=1:ncpus=10:mem=40GB
+#PBS -l walltime=03:00:00
+#PBS -j oe
+
+module load conda
+conda activate dqgs
+export OMP_NUM_THREADS=1
+export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false"
+cd "$PBS_O_WORKDIR"
+logs=error_discovery/results/logs
+
+for w in 16000 32000; do
+    python -u scratch/sectioned_loss.py smoke_long $w \
+        > $logs/smoke_sectioned_loss_both_T_o1_window_${w}_steps.log 2>&1 &
+    for eta in 1e-4 1e-3; do
+        for c in true_state noisy_obs; do
+            python -u scratch/noisy_sectioned_loss.py smoke_long $eta $c $w \
+                > $logs/smoke_noisy_sectioned_loss_both_T_o1_eta${eta}_section_starts_${c}_window_${w}_steps.log 2>&1 &
+        done
+    done
+done
+wait
+python -u scratch/noisy_sectioned_loss.py check_smoke_vs_full \
+    > $logs/smoke_check_smoke_vs_full_window_16000_steps.log 2>&1

@@ -13,9 +13,17 @@ __pycache__/
 .DS_Store
 
 # Generated results: figures are tracked because the manuscript needs them,
-# but the arrays and job logs they come from are not.
-error_discovery/results/data/
-error_discovery/results/logs/
+# but the arrays and job logs they come from are not, except the 16000- and
+# 32000-step sectioned-loss runs, which move between machines by git. Smoke-test
+# outputs match those names and stay untracked.
+error_discovery/results/data/*
+error_discovery/results/logs/*
+!error_discovery/results/data/*_window_16000_steps.npz
+!error_discovery/results/data/*_window_32000_steps.npz
+!error_discovery/results/logs/*_window_16000_steps.log
+!error_discovery/results/logs/*_window_32000_steps.log
+error_discovery/results/data/*smoke*
+error_discovery/results/logs/*smoke*
 scratch/*.npz
 scratch/*.log
 

@@ -23,15 +23,22 @@ Longer window (``plans/sectioned-loss-longer-window.md``): ``long`` runs the sam
 89.7-d sections) and the unsectioned 16000-step fit (``tau=None``, the path 0b used). Writes
 ``results/data/sectioned_loss_both_<driver>_window_16000_steps.npz``.
 
+32000-step window (``plans/sectioned-loss-32000-step-window.md``, run on Casper): ``long 32000``
+adds tau = 16000 (two 179-d sections) before the unsectioned 32000-step fit (``LONG_TAUS``).
+``long`` takes an optional driver, so each driver can run in a process of its own.
+
     python scratch/sectioned_loss.py              # all five drivers, one process
     python scratch/sectioned_loss.py T_o1         # one driver
     python scratch/sectioned_loss.py smoke        # both #0, #1, T_o1, every tau + 8000; checks
     python scratch/sectioned_loss.py figure       # figure and tables from the saved runs
     python scratch/sectioned_loss.py long         # 16000-step window, theta_a1 and T_o1
+    python scratch/sectioned_loss.py long 32000 T_o1    # 32000-step window, one driver
     python scratch/sectioned_loss.py smoke_long   # both #0, #1, T_o1, the 12 fits of long; checks
+    python scratch/sectioned_loss.py smoke_long 32000   # the same, the 13 fits of long 32000
 """
 
 import os
+import resource
 import sys
 import time
 
@@ -50,8 +57,9 @@ from error_discovery.sampling import load_snapshots, noise_scale
 
 MODE = "both"
 TAUS = (40, 80, 125, 160, 250, 320, 500, 1000, 2000, 4000)    # decision 2
-LONG_STEPS = 16000                # longer-window plan, decision 2 (179.4 d)
-LONG_TAUS = TAUS + (8000, LONG_STEPS)     # its decision 3; LONG_STEPS = the unsectioned fit
+LONG_STEPS = 16000                # longer-window plan, decision 2 (179.4 d); the default window
+LONG_TAUS = {16000: TAUS + (8000, 16000),         # its decision 3; last = the unsectioned fit
+             32000: TAUS + (8000, 16000, 32000)}  # 32000-step plan, decision 2
 LONG_DRIVERS = ("theta_a1", "T_o1")       # its decision 4
 REACHED = 1e-3                    # rel_err below this = reached c_true (0a / 0b threshold)
 FELL, MOVED = 1e-10, 0.5          # cost_final / cost0 cut-offs for failed fits (decision 6c)
@@ -153,33 +161,47 @@ def smoke(driver="T_o1", n_states=2):
                                               for k, c in enumerate(costs)))
 
 
-def smoke_long(driver="T_o1", n_states=2):
-    """Longer-window plan, decision 6 check (2), noiseless half: the 12 fits on 2 states, timed;
-    the unsectioned 16000-step fit on state #1 against stage 0a run 1's (same state, window,
-    driver and settings, normal equations); compiled cost at c_true per tau."""
+def _peak_rss_gb():
+    """This process's peak resident memory in GB. ``ru_maxrss`` is bytes on macOS (measured
+    2026-11-27) and KB on Linux (getrusage(2), from memory)."""
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return rss * (1 if sys.platform == "darwin" else 1024) / 1e9
+
+
+def smoke_long(driver="T_o1", n_states=2, window=LONG_STEPS):
+    """Longer-window plan, decision 6 check (2), noiseless half: the fits of ``long window`` on 2
+    states, timed, with peak memory; the unsectioned fit on state #1 against stage 0a run 1's
+    (same state, window, driver and settings, normal equations), where run 1 has that window
+    (16000 and 24000 steps, not 32000); compiled cost at c_true per tau."""
+    taus = LONG_TAUS[window]
     t0 = time.time()
-    path = run(driver, n_states=n_states, taus=LONG_TAUS, tag="smoke", window=LONG_STEPS)
+    path = run(driver, n_states=n_states, taus=taus, tag="smoke", window=window)
     print(f"\nwall time {time.time() - t0:.0f} s, "
-          f"{(time.time() - t0) / (n_states * len(LONG_TAUS)):.1f} s per fit (setup included)")
+          f"{(time.time() - t0) / (n_states * len(taus)):.1f} s per fit (setup included), "
+          f"peak RSS {_peak_rss_gb():.2f} GB")
     d, r1 = np.load(path), np.load(os.path.join(DATA_DIR, "stage0a_run1.npz"))
-    i = np.flatnonzero((r1["snapshot"] == d["sample_snapshot_index"][1])
-                       & (r1["window_steps"] == LONG_STEPS) & (r1["solver"] == "normal"))[0]
+    rows = np.flatnonzero((r1["snapshot"] == d["sample_snapshot_index"][1])
+                          & (r1["window_steps"] == window) & (r1["solver"] == "normal"))
     assert driver == "T_o1" and np.array_equal(r1["c_true"], d["c_true"][0])
-    print(f"unsectioned {LONG_STEPS}-step fit, state 1, vs stage 0a run 1:")
-    for key, old in (("c_hats", r1["c_hat"][i]), ("rel_err", r1["rel_err"][i]),
-                     ("cost0", r1["cost0"][i]), ("cost_final", r1["cost_final"][i]),
-                     ("n_iters", r1["n_iters_run"][i])):
-        new = d[key][-1, 1]
-        print(f"  {key:10s} bit-identical {np.array_equal(new, old)}  "
-              f"max |diff| {np.max(np.abs(np.asarray(new, float) - old)):.1e}")
+    if rows.size == 0:
+        print(f"stage 0a run 1 has no {window}-step fit on state 1: comparison skipped")
+    else:
+        i = rows[0]
+        print(f"unsectioned {window}-step fit, state 1, vs stage 0a run 1:")
+        for key, old in (("c_hats", r1["c_hat"][i]), ("rel_err", r1["rel_err"][i]),
+                         ("cost0", r1["cost0"][i]), ("cost_final", r1["cost_final"][i]),
+                         ("n_iters", r1["n_iters_run"][i])):
+            new = d[key][-1, 1]
+            print(f"  {key:10s} bit-identical {np.array_equal(new, old)}  "
+                  f"max |diff| {np.max(np.abs(np.asarray(new, float) - old)):.1e}")
     cfg = ExperimentConfig()
     tw = TwinModels(cfg.eps, DRIVERS[driver])
     oidx = obs_indices(obs_mask(tw.ndim, tw.spec.variables_range, cfg.obs))
     wchan = 1.0 / noise_scale()[oidx]
     ics, trajs = segments_from_states(tw, load_snapshots(d["sample_snapshot_index"]),
-                                      LONG_STEPS, cfg.dt)
-    print("compiled cost at c_true (cost0 for scale; tau = 16000 as one section):")
-    for it, tau in enumerate(LONG_TAUS):
+                                      window, cfg.dt)
+    print(f"compiled cost at c_true (cost0 for scale; tau = {window} as one section):")
+    for it, tau in enumerate(taus):
         costs = [_cost_at_c_true(tw, ics[k], trajs[k], tau, oidx, wchan, cfg.dt)
                  for k in range(n_states)]
         print(f"  tau {tau:5d}: " + "  ".join(f"state {k} {c:.2e} (cost0 {d['cost0'][it, k]:.2e})"
@@ -277,11 +299,12 @@ if __name__ == "__main__":
         smoke()
     elif arg == "figure":
         figure()
-    elif arg == "long":
-        for name in LONG_DRIVERS:
-            run(name, taus=LONG_TAUS, window=LONG_STEPS)
-    elif arg == "smoke_long":
-        smoke_long()
+    elif arg == "long":                          # long [window] [driver]
+        window = int(sys.argv[2]) if len(sys.argv) > 2 else LONG_STEPS
+        for name in sys.argv[3:4] or LONG_DRIVERS:
+            run(name, taus=LONG_TAUS[window], window=window)
+    elif arg == "smoke_long":                    # smoke_long [window]
+        smoke_long(window=int(sys.argv[2]) if len(sys.argv) > 2 else LONG_STEPS)
     elif arg in DRIVERS:
         run(arg)
     elif arg == "all":
